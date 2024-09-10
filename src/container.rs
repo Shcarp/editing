@@ -1,12 +1,14 @@
 use web_sys::CanvasRenderingContext2d;
 use std::fmt::Debug;
 
+use crate::renderer::Renderer;
+
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct ObjectId(String);
 
 // 渲染 trait
 pub trait Renderable: Debug {
-    fn render(&self, context: &CanvasRenderingContext2d);
+    fn render(&self, renderer: &dyn Renderer);
     fn update(&mut self, delta_time: f32);
     fn get_id(&self) -> &ObjectId;
     fn is_visible(&self) -> bool;

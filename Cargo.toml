@@ -19,5 +19,10 @@ web-sys = { version = "0.3.70", features = [
     "HtmlImageElement",
     "DomMatrix",
     "TextMetrics",
+    "CanvasGradient",
+    "CanvasPattern",
+    "SvgMatrix",
+    "SvgsvgElement",
+    "ImageData",
 ] }
 console_error_panic_hook = "0.1.7"

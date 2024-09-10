@@ -1,9 +1,14 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d, WebGl2RenderingContext, js_sys::Function};
+use std::cell::RefCell;
 use std::fmt::Debug;
 use std::collections::HashMap;
+use std::rc::Rc;
+use std::sync::Arc;
+use wasm_bindgen::JsCast;
 
 use crate::object_manager::ObjectManager;
+use crate::renderer::{Renderer, Canvas2DRenderer};
 
 pub enum CanvasContext {
     Canvas2d(CanvasRenderingContext2d),
@@ -24,9 +29,8 @@ pub struct App {
     canvas: Option<HtmlCanvasElement>,
     injected_methods: HashMap<String, Function>,
     context_type: CanvasContextType,
-    object_manager: ObjectManager,
-    // texture_manager: TextureManager,
-    // shader_manager: ShaderManager,
+    object_manager: Rc<RefCell<ObjectManager>>,
+    renderer: Rc<RefCell<Option<Box<dyn Renderer>>>>,
 }
 
 #[wasm_bindgen]
@@ -38,7 +42,8 @@ impl App {
             canvas: None,
             injected_methods: HashMap::new(),
             context_type: CanvasContextType::Canvas2d,
-            object_manager: ObjectManager::new(),
+            object_manager: Rc::new(RefCell::new(ObjectManager::new())),
+            renderer: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -49,6 +54,16 @@ impl App {
 
         let canvas = document.get_element_by_id(&self.canvas_id).unwrap();
         let canvas = canvas.dyn_into::<HtmlCanvasElement>().unwrap();
+        // 初始化渲染器
+        let renderer = match self.context_type {
+            CanvasContextType::Canvas2d => {
+                let context: CanvasRenderingContext2d = canvas.get_context("2d")?.unwrap().dyn_into::<CanvasRenderingContext2d>()?;
+                Rc::new(RefCell::new(Some(Box::new(Canvas2DRenderer::new(context)) as Box<dyn Renderer>)))
+            },
+            _ => return Err(JsValue::from_str("Unsupported context type")),
+        };
+        
+        self.renderer = renderer;
 
         self.canvas = Some(canvas);
         self.adjust_for_pixel_ratio()?;
@@ -148,10 +163,33 @@ impl App {
         Ok(())
     }
 
-    pub fn start_loop(&self) {
-        let window = web_sys::window().unwrap();
-        // let request_animation_frame = window.request_animation_frame(callback).unwrap();
-        // 调用 object_manager 的 render_all 方法
-        // self.object_manager.render_all(&self.get_context().unwrap());
+    pub fn start_loop(&self) -> Result<(), JsValue> {
+        let f = Rc::new(RefCell::new(None));
+        let g = f.clone();
+
+        let object_manager = self.object_manager.clone();
+        let renderer = self.renderer.clone();
+
+        *g.borrow_mut() = Some(Closure::new(move || {
+            let object_manager = object_manager.borrow_mut();
+            let renderer = renderer.borrow();
+
+            if let Some(renderer) = renderer.as_ref() {
+                object_manager.render(renderer.as_ref());
+            }
+
+            request_animation_frame(f.borrow().as_ref().unwrap());
+        }));
+
+        request_animation_frame(g.borrow().as_ref().unwrap());
+
+        Ok(())
     }
+}
+
+fn request_animation_frame(f: &Closure<dyn FnMut()>) -> i32 {
+    web_sys::window()
+        .unwrap()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK")
 }
