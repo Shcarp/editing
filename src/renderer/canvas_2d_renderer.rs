@@ -143,6 +143,10 @@ impl Renderer for Canvas2DRenderer {
         self.context.stroke_text(text, x, y).unwrap();
     }
 
+    fn stroke_rect(&self, x: f64, y: f64, width: f64, height: f64) {
+        self.context.stroke_rect(x, y, width, height);
+    }
+
     fn measure_text(&self, text: &str) -> f64 {
         self.context.measure_text(text).unwrap().width()
     }

@@ -24,8 +24,8 @@ impl Default for RectOptions {
             width: 100.0, 
             height: 100.0, 
             fill: "blue".to_string(), 
-            stroke: "transparent".to_string(), 
-            stroke_width: 0.0, 
+            stroke: "black".to_string(), 
+            stroke_width: 2.0, 
             opacity: 1.0, 
             transform: na::Matrix1x6::new(1.0, 0.0, 0.0, 1.0, 100.0,0.0)
         }
@@ -72,11 +72,13 @@ impl Renderable for Rect {
         }
 
         renderer.set_global_alpha(self.opacity);
+        renderer.draw_rectangle(self.x, self.y, self.width, self.height, &self.fill);
+
+        let offset = self.stroke_width / 2.0;
+
         renderer.set_stroke_style(&self.stroke);
         renderer.set_line_width(self.stroke_width);
-        renderer.begin_path();
-        renderer.draw_rectangle(self.x, self.y, self.width, self.height, &self.fill);
-        renderer.stroke()
+        renderer.stroke_rect(self.x + offset, self.y + offset, self.width - self.stroke_width, self.height - self.stroke_width);
     }
 
     fn id(&self) -> &ObjectId {

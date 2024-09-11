@@ -1,3 +1,4 @@
+mod bounding_box;
 mod events;
 mod image;
 mod helper;

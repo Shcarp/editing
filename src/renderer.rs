@@ -29,6 +29,8 @@ pub trait Renderer: Debug {
     fn stroke(&self);
     fn fill(&self);
 
+    fn stroke_rect(&self, x: f64, y: f64, width: f64, height: f64);
+
     // 文本绘制
     fn fill_text(&self, text: &str, x: f64, y: f64);
     fn stroke_text(&self, text: &str, x: f64, y: f64);

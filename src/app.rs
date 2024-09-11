@@ -24,7 +24,6 @@ pub enum CanvasContextType {
     WebGl2,   
 }
 
-
 #[derive(Debug)]
 pub struct App {
     canvas_id: String,
@@ -186,8 +185,8 @@ impl App {
 
         if let Some(canvas) = self.canvas.as_ref() {
             let style = canvas.style();
-            let css_width = style.get_property_value("width")?.parse::<f64>().unwrap_or(300.0);
-            let css_height = style.get_property_value("height")?.parse::<f64>().unwrap_or(150.0);
+            let css_width = style.get_property_value("width")?.parse::<f64>().unwrap_or(1000.0);
+            let css_height = style.get_property_value("height")?.parse::<f64>().unwrap_or(1000.0);
 
             canvas.set_width((css_width * ratio) as u32);
             canvas.set_height((css_height * ratio) as u32);
@@ -215,7 +214,6 @@ impl App {
             let scene_manager = scene_manager.borrow_mut();
             let renderer = renderer.borrow();
             if let Some(renderer) = renderer.as_ref() {
-                console::log_1(&JsValue::from_str("turning"));
                 scene_manager.render(renderer.as_ref());
             }
 

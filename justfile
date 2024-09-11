@@ -1,5 +1,3 @@
-set shell := ["powershell.exe", "-c"]
-
 build:
     wasm-pack build --target web
 

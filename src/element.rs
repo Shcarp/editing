@@ -72,6 +72,10 @@ pub trait RenderContainer: Debug {
     fn update_all(&mut self, delta_time: f32);
 }
 
+pub trait Collidable {
+    fn collides_with(&self, other: &dyn Collidable) -> bool;
+}
+
 // 为 Renderable trait 实现检查方法
 pub fn is_renderable<T: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<dyn Renderable>()
@@ -85,4 +89,8 @@ pub fn is_transformable<T: 'static>() -> bool {
 // 为 RenderContainer trait 实现检查方法
 pub fn is_render_container<T: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<dyn RenderContainer<Item = dyn Renderable>>()
+}
+
+pub fn is_collidable<T: 'static>() -> bool {
+    TypeId::of::<T>() == TypeId::of::<dyn Collidable>()
 }
