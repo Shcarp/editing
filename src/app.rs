@@ -1,14 +1,17 @@
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d, WebGl2RenderingContext, js_sys::Function};
+use web_sys::{HtmlCanvasElement, CanvasRenderingContext2d, WebGl2RenderingContext, js_sys::Function, console};
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::Arc;
 use wasm_bindgen::JsCast;
 
+use crate::element::Renderable;
+use crate::events::{get_event_system, AppEvent};
+use crate::helper::request_animation_frame;
 use crate::object_manager::ObjectManager;
 use crate::renderer::{Renderer, Canvas2DRenderer};
+use crate::scene_manager::SceneManager;
 
 pub enum CanvasContext {
     Canvas2d(CanvasRenderingContext2d),
@@ -23,31 +26,33 @@ pub enum CanvasContextType {
 
 
 #[derive(Debug)]
-#[wasm_bindgen]
 pub struct App {
     canvas_id: String,
     canvas: Option<HtmlCanvasElement>,
     injected_methods: HashMap<String, Function>,
     context_type: CanvasContextType,
-    object_manager: Rc<RefCell<ObjectManager>>,
     renderer: Rc<RefCell<Option<Box<dyn Renderer>>>>,
+    pub  object_manager: Rc<RefCell<ObjectManager>>,
+    scene_manager: Rc<RefCell<SceneManager>>
 }
 
-#[wasm_bindgen]
 impl App {
-    #[wasm_bindgen(constructor)]
     pub fn new(canvas_id: String) -> Self {
+        let object_manager = Rc::new(RefCell::new(ObjectManager::new()));
+        let scene_manager = Rc::new(RefCell::new(SceneManager::new(object_manager.clone())));
+
+
         Self {
             canvas_id,
             canvas: None,
             injected_methods: HashMap::new(),
             context_type: CanvasContextType::Canvas2d,
-            object_manager: Rc::new(RefCell::new(ObjectManager::new())),
+            object_manager: object_manager,
             renderer: Rc::new(RefCell::new(None)),
+            scene_manager,
         }
     }
 
-    #[wasm_bindgen]
     pub fn init(&mut self) -> Result<(), JsValue> {
         let window = web_sys::window().unwrap();
         let document = window.document().unwrap();
@@ -67,22 +72,20 @@ impl App {
 
         self.canvas = Some(canvas);
         self.adjust_for_pixel_ratio()?;
+        let _ = get_event_system().emit(AppEvent::READY.into(), &JsValue::NULL);
         Ok(())
     }
 
-    #[wasm_bindgen]
     pub fn get_pixel_ratio(&self) -> f64 {
         let window = web_sys::window().expect("Should have a window in this context");
         window.device_pixel_ratio()
     }
 
-    #[wasm_bindgen]
     pub fn adjust_for_pixel_ratio(&self) -> Result<(), JsValue> {
         let ratio = self.get_pixel_ratio();
         self.set_pixel_ratio(ratio)
     }
 
-    #[wasm_bindgen]
     pub fn is_support_type(&self, context_type: &str) -> bool {
         let window = web_sys::window().expect("Should have a window in this context");
         let document = window.document().expect("Should have a document on window");
@@ -96,14 +99,12 @@ impl App {
         }
     }
 
-    #[wasm_bindgen]
     pub fn inject_method(&mut self, method_name: &str, method: JsValue) -> Result<(), JsValue> {
         let function = Function::from(method);
         self.injected_methods.insert(method_name.to_string(), function);
         Ok(())
     }
 
-    #[wasm_bindgen]
     pub fn call_injected_method(&self, method_name: &str, args: &JsValue) -> Result<JsValue, JsValue> {
         if let Some(method) = self.injected_methods.get(method_name) {
             method.call1(&JsValue::NULL, args)
@@ -112,7 +113,6 @@ impl App {
         }
     }
 
-    #[wasm_bindgen]
     pub fn set_context_type(&mut self, context_type: &str) -> Result<(), JsValue> {
         let context_type = match context_type {
             "2d" => CanvasContextType::Canvas2d,
@@ -121,6 +121,46 @@ impl App {
         };
         self.context_type = context_type;
         Ok(())
+    }
+}
+
+impl App {
+    pub fn add(&self, object: impl Renderable + 'static) {
+        self.object_manager.borrow_mut().add(object);
+    }
+
+    pub fn remove(&self, id: &str) -> Option<Rc<RefCell<Box<dyn Renderable>>>> {
+        self.object_manager.borrow_mut().remove(id)
+    }
+
+    pub fn get(&self, id: &str) ->  Option<Rc<RefCell<Box<dyn Renderable>>>> {
+        self.object_manager.borrow().get(id)
+    }
+
+
+    pub fn contains(&self, id: &str) -> bool {
+        self.object_manager.borrow().contains(id)
+    }
+
+    pub fn len(&self) -> usize {
+        self.object_manager.borrow().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.object_manager.borrow().is_empty()
+    }
+
+    pub fn clear(&self) {
+        self.object_manager.borrow_mut().clear();
+    }
+
+    pub fn update(&self, id: &str, update_fn: impl FnOnce(&mut Rc<RefCell<Box<dyn Renderable>>>)) -> bool {
+        self.object_manager.borrow_mut().update(id, update_fn)
+    }
+
+    pub fn get_objects(&self) -> Vec<Rc<RefCell<Box<dyn Renderable>>>> {
+        let res =  self.object_manager.borrow().get_objects().clone();
+        res
     }
 }
 
@@ -164,18 +204,19 @@ impl App {
     }
 
     pub fn start_loop(&self) -> Result<(), JsValue> {
+        console::log_1(&JsValue::from_str("start loop"));
         let f = Rc::new(RefCell::new(None));
         let g = f.clone();
 
-        let object_manager = self.object_manager.clone();
+        let scene_manager: Rc<RefCell<SceneManager>> = self.scene_manager.clone();
         let renderer = self.renderer.clone();
 
         *g.borrow_mut() = Some(Closure::new(move || {
-            let object_manager = object_manager.borrow_mut();
+            let scene_manager = scene_manager.borrow_mut();
             let renderer = renderer.borrow();
-
             if let Some(renderer) = renderer.as_ref() {
-                object_manager.render(renderer.as_ref());
+                console::log_1(&JsValue::from_str("turning"));
+                scene_manager.render(renderer.as_ref());
             }
 
             request_animation_frame(f.borrow().as_ref().unwrap());
@@ -187,9 +228,3 @@ impl App {
     }
 }
 
-fn request_animation_frame(f: &Closure<dyn FnMut()>) -> i32 {
-    web_sys::window()
-        .unwrap()
-        .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("should register `requestAnimationFrame` OK")
-}

@@ -1,4 +1,4 @@
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{Document, SvgsvgElement, SvgMatrix};
 
 pub fn create_svg_matrix() -> Result<SvgMatrix, String> {
@@ -36,4 +36,11 @@ fn create_temporary_svg(document: &Document) -> Result<SvgsvgElement, String> {
         .map_err(|_| "Failed to append SVG to body")?;
     
     Ok(svg)
+}
+
+pub fn request_animation_frame(f: &Closure<dyn FnMut()>) -> i32 {
+    web_sys::window()
+        .unwrap()
+        .request_animation_frame(f.as_ref().unchecked_ref())
+        .expect("should register `requestAnimationFrame` OK")
 }
