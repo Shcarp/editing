@@ -1,16 +1,16 @@
-mod bounding_box;
-mod events;
-mod image;
-mod helper;
-mod renderer;
-mod element;
-mod object_manager;
-mod scene_manager;
 mod app;
+mod bounding_box;
+mod element;
+mod events;
+mod helper;
+mod image;
+mod object_manager;
+mod renderer;
+mod scene_manager;
 
-use wasm_bindgen::prelude::*; 
 use app::App;
-use element::{Rect, RectOptions};
+use element::{Rect, RectOptions, Transformable};
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
@@ -20,20 +20,17 @@ extern "C" {
 
 #[wasm_bindgen(start)]
 pub fn wasm_main() {
-    let mut app = App::new("TEST_001".to_string()); 
-    
-    let init_result =  app.init();
+    let mut app = App::new("TEST_001".to_string());
+
+    let init_result = app.init();
     match init_result {
         Ok(_) => {
             log("init success");
-            let rect = Rect::new(RectOptions::default());
-            
+            let mut rect = Rect::new(RectOptions::default());
+            rect.translate(100.0, 100.0);
             app.add(rect);
-
             let _ = app.start_loop();
-        },
-        Err(_) =>{
-            log("error")
-        },
+        }
+        Err(_) => log("error"),
     }
 }

@@ -1,3 +1,6 @@
+set shell := ["sh", "-c"]
+set windows-shell := ["powershell.exe", "-c"]
+
 build:
     wasm-pack build --target web
 

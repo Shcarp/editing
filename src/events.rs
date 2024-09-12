@@ -2,12 +2,12 @@ mod app_events;
 
 pub use app_events::*;
 
-use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::sync::Once;
 use wasm_bindgen::prelude::*;
-use web_sys::js_sys::Function;
 use wasm_bindgen::JsValue;
+use web_sys::js_sys::Function;
 
 static INIT: Once = Once::new();
 static mut GLOBAL_EVENT_SYSTEM: Option<EventSystem> = None;
@@ -26,7 +26,7 @@ extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
 }
- 
+
 #[wasm_bindgen]
 #[derive(Debug, Clone)]
 pub struct EventData {
@@ -66,7 +66,6 @@ pub struct EventSystem {
     events: RefCell<HashMap<String, Vec<Function>>>,
 }
 
-
 impl EventSystem {
     pub fn new() -> Self {
         console_error_panic_hook::set_once();
@@ -81,7 +80,7 @@ impl EventSystem {
             .entry(event_name.to_string())
             .or_insert_with(Vec::new)
             .push(callback.clone());
-        
+
         log(&format!("Added listener for event: {}", event_name));
         Ok(())
     }
@@ -98,7 +97,11 @@ impl EventSystem {
             for listener in listeners {
                 listener.call1(&JsValue::NULL, &JsValue::from(event_data.clone()))?;
             }
-            log(&format!("Emitted event: {} with {} listeners", event_name, listeners.len()));
+            log(&format!(
+                "Emitted event: {} with {} listeners",
+                event_name,
+                listeners.len()
+            ));
         } else {
             log(&format!("No listeners for event: {}", event_name));
         }
@@ -112,9 +115,15 @@ impl EventSystem {
             listeners.retain(|l| l != callback);
             let removed_count = initial_count - listeners.len();
             if removed_count > 0 {
-                log(&format!("Removed {} listener(s) for event: {}", removed_count, event_name));
+                log(&format!(
+                    "Removed {} listener(s) for event: {}",
+                    removed_count, event_name
+                ));
             } else {
-                log(&format!("No matching listener found for event: {}", event_name));
+                log(&format!(
+                    "No matching listener found for event: {}",
+                    event_name
+                ));
             }
         } else {
             log(&format!("No listeners found for event: {}", event_name));
@@ -132,5 +141,3 @@ impl EventSystem {
         self.events.borrow().get(event_name).map_or(0, |v| v.len())
     }
 }
-
-

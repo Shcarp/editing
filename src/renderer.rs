@@ -1,4 +1,5 @@
 mod canvas_2d_renderer;
+
 use std::fmt::Debug;
 
 use crate::image::Image;
@@ -39,7 +40,18 @@ pub trait Renderer: Debug {
     // 图像绘制
     fn draw_image(&self, image: &Image, x: f64, y: f64);
     fn draw_image_with_size(&self, image: &Image, x: f64, y: f64, width: f64, height: f64);
-    fn draw_image_clip(&self, image: &Image, sx: f64, sy: f64, s_width: f64, s_height: f64, dx: f64, dy: f64, d_width: f64, d_height: f64);
+    fn draw_image_clip(
+        &self,
+        image: &Image,
+        sx: f64,
+        sy: f64,
+        s_width: f64,
+        s_height: f64,
+        dx: f64,
+        dy: f64,
+        d_width: f64,
+        d_height: f64,
+    );
 
     // 状态管理
     fn save(&self);
@@ -69,14 +81,21 @@ pub trait Renderer: Debug {
 
     // 渐变和图案
     fn create_linear_gradient(&self, x0: f64, y0: f64, x1: f64, y1: f64) -> Box<dyn Gradient>;
-    fn create_radial_gradient(&self, x0: f64, y0: f64, r0: f64, x1: f64, y1: f64, r1: f64) -> Box<dyn Gradient>;
+    fn create_radial_gradient(
+        &self,
+        x0: f64,
+        y0: f64,
+        r0: f64,
+        x1: f64,
+        y1: f64,
+        r1: f64,
+    ) -> Box<dyn Gradient>;
     fn create_pattern(&self, image: &Image, repetition: PatternRepetition) -> Box<dyn Pattern>;
 
     // 像素操作
     fn get_image_data(&self, sx: f64, sy: f64, sw: f64, sh: f64) -> ImageData;
     fn put_image_data(&self, image_data: &ImageData, dx: f64, dy: f64);
 }
-
 
 // 辅助类型定义
 pub trait Gradient {
@@ -162,7 +181,6 @@ impl From<TextAlign> for String {
         str_slice.to_string()
     }
 }
-
 
 pub enum TextBaseline {
     Top,
@@ -286,4 +304,3 @@ impl From<PatternRepetition> for String {
         str_slice.to_string()
     }
 }
-

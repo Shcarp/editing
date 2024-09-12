@@ -1,5 +1,5 @@
-use std::{cell::RefCell, collections::HashMap, rc::Rc};
 use crate::element::Renderable;
+use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 #[derive(Debug)]
 pub struct ObjectManager {
@@ -13,13 +13,14 @@ impl ObjectManager {
         }
     }
 
-    pub fn add<T>(&mut self, object: T) where 
-        T:  Renderable + 'static
+    pub fn add<T>(&mut self, object: T)
+    where
+        T: Renderable + 'static,
     {
-        let id = object.id().0.clone();
+        let id = object.id().clone();
         let value: Rc<RefCell<Box<dyn Renderable>>> = Rc::new(RefCell::new(Box::new(object)));
 
-        self.objects.insert(id, value);
+        self.objects.insert(id.value(), value);
     }
 
     pub fn remove(&mut self, id: &str) -> Option<Rc<RefCell<Box<dyn Renderable>>>> {
@@ -50,11 +51,17 @@ impl ObjectManager {
         self.objects.iter()
     }
 
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&String, &mut Rc<RefCell<Box<dyn Renderable>>>)> {
+    pub fn iter_mut(
+        &mut self,
+    ) -> impl Iterator<Item = (&String, &mut Rc<RefCell<Box<dyn Renderable>>>)> {
         self.objects.iter_mut()
     }
 
-    pub fn update(&mut self, id: &str, update_fn: impl FnOnce(&mut Rc<RefCell<Box<dyn Renderable>>>)) -> bool {
+    pub fn update(
+        &mut self,
+        id: &str,
+        update_fn: impl FnOnce(&mut Rc<RefCell<Box<dyn Renderable>>>),
+    ) -> bool {
         if let Some(object) = self.objects.get_mut(id) {
             update_fn(object);
             true

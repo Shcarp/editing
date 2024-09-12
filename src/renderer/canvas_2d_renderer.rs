@@ -1,10 +1,13 @@
-use web_sys::{CanvasRenderingContext2d, CanvasGradient, CanvasPattern};
-use wasm_bindgen::JsValue;
 use std::f64::consts::PI;
+use wasm_bindgen::JsValue;
+use web_sys::{CanvasGradient, CanvasPattern, CanvasRenderingContext2d};
 
 use crate::helper::create_svg_matrix;
 
-use super::{CompositeOperation, Gradient, Image, LineCap, LineJoin, Pattern, PatternRepetition, Renderer, TextAlign, TextBaseline, ImageData};
+use super::{
+    CompositeOperation, Gradient, Image, ImageData, LineCap, LineJoin, Pattern, PatternRepetition,
+    Renderer, TextAlign, TextBaseline,
+};
 
 // 为 CanvasGradient 实现 Gradient trait
 impl Gradient for CanvasGradient {
@@ -25,7 +28,6 @@ impl Pattern for CanvasPattern {
         self.set_transform(&matrix);
     }
 }
- 
 
 pub struct Canvas2DRenderer {
     context: CanvasRenderingContext2d,
@@ -50,7 +52,8 @@ impl Renderer for Canvas2DRenderer {
 
     fn clear_all(&self) {
         let canvas = self.context.canvas().unwrap();
-        self.context.clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
+        self.context
+            .clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
     }
 
     fn draw_rectangle(&self, x: f64, y: f64, width: f64, height: f64, color: &str) {
@@ -68,7 +71,9 @@ impl Renderer for Canvas2DRenderer {
     fn draw_ellipse(&self, x: f64, y: f64, radius_x: f64, radius_y: f64, color: &str) {
         self.context.set_fill_style(&JsValue::from_str(color));
         self.context.begin_path();
-        self.context.ellipse(x, y, radius_x, radius_y, 0.0, 0.0, 2.0 * PI).unwrap();
+        self.context
+            .ellipse(x, y, radius_x, radius_y, 0.0, 0.0, 2.0 * PI)
+            .unwrap();
         self.context.fill();
     }
 
@@ -116,7 +121,9 @@ impl Renderer for Canvas2DRenderer {
     }
 
     fn arc(&self, x: f64, y: f64, radius: f64, start_angle: f64, end_angle: f64) {
-        self.context.arc(x, y, radius, start_angle, end_angle).unwrap();
+        self.context
+            .arc(x, y, radius, start_angle, end_angle)
+            .unwrap();
     }
 
     fn arc_to(&self, x1: f64, y1: f64, x2: f64, y2: f64, radius: f64) {
@@ -153,19 +160,36 @@ impl Renderer for Canvas2DRenderer {
 
     fn draw_image(&self, image: &Image, x: f64, y: f64) {
         let img = image.as_html_image_element();
-        self.context.draw_image_with_html_image_element(&img, x, y).unwrap();
+        self.context
+            .draw_image_with_html_image_element(&img, x, y)
+            .unwrap();
     }
 
     fn draw_image_with_size(&self, image: &Image, x: f64, y: f64, width: f64, height: f64) {
         let img = image.as_html_image_element();
-        self.context.draw_image_with_html_image_element_and_dw_and_dh(&img, x, y, width, height).unwrap();
+        self.context
+            .draw_image_with_html_image_element_and_dw_and_dh(&img, x, y, width, height)
+            .unwrap();
     }
 
-    fn draw_image_clip(&self, image: &Image, sx: f64, sy: f64, s_width: f64, s_height: f64, dx: f64, dy: f64, d_width: f64, d_height: f64) {
+    fn draw_image_clip(
+        &self,
+        image: &Image,
+        sx: f64,
+        sy: f64,
+        s_width: f64,
+        s_height: f64,
+        dx: f64,
+        dy: f64,
+        d_width: f64,
+        d_height: f64,
+    ) {
         let img = image.as_html_image_element();
-        self.context.draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-            &img, sx, sy, s_width, s_height, dx, dy, d_width, d_height
-        ).unwrap();
+        self.context
+            .draw_image_with_html_image_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+                &img, sx, sy, s_width, s_height, dx, dy, d_width, d_height,
+            )
+            .unwrap();
     }
 
     fn save(&self) {
@@ -209,20 +233,12 @@ impl Renderer for Canvas2DRenderer {
     }
 
     fn set_line_cap(&self, cap: LineCap) {
-        let cap_str = match cap {
-            LineCap::Butt => "butt",
-            LineCap::Round => "round",
-            LineCap::Square => "square",
-        };
+        let cap_str = cap.into();
         self.context.set_line_cap(cap_str);
     }
 
     fn set_line_join(&self, join: LineJoin) {
-        let join_str = match join {
-            LineJoin::Miter => "miter",
-            LineJoin::Round => "round",
-            LineJoin::Bevel => "bevel",
-        };
+        let join_str = join.into();
         self.context.set_line_join(join_str);
     }
 
@@ -251,25 +267,12 @@ impl Renderer for Canvas2DRenderer {
     }
 
     fn set_text_align(&self, align: TextAlign) {
-        let align_str = match align {
-            TextAlign::Start => "start",
-            TextAlign::End => "end",
-            TextAlign::Left => "left",
-            TextAlign::Right => "right",
-            TextAlign::Center => "center",
-        };
+        let align_str = align.into();
         self.context.set_text_align(align_str);
     }
 
     fn set_text_baseline(&self, baseline: TextBaseline) {
-        let baseline_str = match baseline {
-            TextBaseline::Top => "top",
-            TextBaseline::Hanging => "hanging",
-            TextBaseline::Middle => "middle",
-            TextBaseline::Alphabetic => "alphabetic",
-            TextBaseline::Ideographic => "ideographic",
-            TextBaseline::Bottom => "bottom",
-        };
+        let baseline_str = baseline.into();
         self.context.set_text_baseline(baseline_str);
     }
 
@@ -279,28 +282,40 @@ impl Renderer for Canvas2DRenderer {
 
     fn set_global_composite_operation(&self, operation: CompositeOperation) {
         let operation_str: String = operation.into();
-        self.context.set_global_composite_operation(&operation_str).unwrap();
+        self.context
+            .set_global_composite_operation(&operation_str)
+            .unwrap();
     }
 
     fn create_linear_gradient(&self, x0: f64, y0: f64, x1: f64, y1: f64) -> Box<dyn Gradient> {
         let gradient = self.context.create_linear_gradient(x0, y0, x1, y1);
         Box::new(gradient)
     }
-    
-    fn create_radial_gradient(&self, x0: f64, y0: f64, r0: f64, x1: f64, y1: f64, r1: f64) -> Box<dyn Gradient> {
-        let gradient = self.context.create_radial_gradient(x0, y0, r0, x1, y1, r1).unwrap();
+
+    fn create_radial_gradient(
+        &self,
+        x0: f64,
+        y0: f64,
+        r0: f64,
+        x1: f64,
+        y1: f64,
+        r1: f64,
+    ) -> Box<dyn Gradient> {
+        let gradient = self
+            .context
+            .create_radial_gradient(x0, y0, r0, x1, y1, r1)
+            .unwrap();
         Box::new(gradient)
     }
 
     fn create_pattern(&self, image: &Image, repetition: PatternRepetition) -> Box<dyn Pattern> {
         let img = image.as_html_image_element();
-        let repetition_str = match repetition {
-            PatternRepetition::Repeat => "repeat",
-            PatternRepetition::RepeatX => "repeat-x",
-            PatternRepetition::RepeatY => "repeat-y",
-            PatternRepetition::NoRepeat => "no-repeat",
-        };
-        let pattern = self.context.create_pattern_with_html_image_element(&img, repetition_str).unwrap().unwrap();
+        let repetition_str = repetition.into();
+        let pattern = self
+            .context
+            .create_pattern_with_html_image_element(&img, repetition_str)
+            .unwrap()
+            .unwrap();
         Box::new(pattern)
     }
 
@@ -313,5 +328,3 @@ impl Renderer for Canvas2DRenderer {
         self.context.put_image_data(&image_data.0, dx, dy).unwrap();
     }
 }
-
-

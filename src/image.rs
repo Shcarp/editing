@@ -1,6 +1,6 @@
-use web_sys::{HtmlCanvasElement, HtmlImageElement};
-use wasm_bindgen::JsCast;
 use std::borrow::Cow;
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlCanvasElement, HtmlImageElement};
 
 pub trait ImageSource {
     fn into_html_image_element(self) -> HtmlImageElement;
@@ -45,7 +45,9 @@ impl<'a> Image<'a> {
     pub fn as_html_image_element(&self) -> HtmlImageElement {
         match &self.0 {
             ImageDataSource::HtmlImage(img) => img.clone().into_owned(),
-            ImageDataSource::HtmlCanvas(canvas) => canvas.clone().into_owned().into_html_image_element(),
+            ImageDataSource::HtmlCanvas(canvas) => {
+                canvas.clone().into_owned().into_html_image_element()
+            }
             // 处理其他类型...
         }
     }
@@ -93,7 +95,8 @@ pub trait IntoCanvas {
 impl IntoCanvas for HtmlImageElement {
     fn into_canvas(self) -> HtmlCanvasElement {
         let document = web_sys::window().unwrap().document().unwrap();
-        let canvas = document.create_element("canvas")
+        let canvas = document
+            .create_element("canvas")
             .unwrap()
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
@@ -111,13 +114,13 @@ impl IntoCanvas for HtmlImageElement {
             .unwrap();
 
         // 将图像绘制到画布上
-        context.draw_image_with_html_image_element(&self, 0.0, 0.0)
+        context
+            .draw_image_with_html_image_element(&self, 0.0, 0.0)
             .expect("Failed to draw image on canvas");
 
         canvas
     }
 }
-
 
 // 定义新的 trait
 pub trait IntoImage {
@@ -128,14 +131,18 @@ pub trait IntoImage {
 impl IntoImage for HtmlCanvasElement {
     fn into_image(self) -> HtmlImageElement {
         let document = web_sys::window().unwrap().document().unwrap();
-        let image = document.create_element("img").unwrap().dyn_into::<HtmlImageElement>().unwrap();
-        
+        let image = document
+            .create_element("img")
+            .unwrap()
+            .dyn_into::<HtmlImageElement>()
+            .unwrap();
+
         // 将画布内容转换为 data URL
         let data_url = self.to_data_url().unwrap();
-        
+
         // 设置图像的 src 为画布的 data URL
         image.set_src(&data_url);
-        
+
         image
     }
 }
