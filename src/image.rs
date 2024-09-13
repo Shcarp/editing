@@ -47,8 +47,7 @@ impl<'a> Image<'a> {
             ImageDataSource::HtmlImage(img) => img.clone().into_owned(),
             ImageDataSource::HtmlCanvas(canvas) => {
                 canvas.clone().into_owned().into_html_image_element()
-            }
-            // 处理其他类型...
+            } // 处理其他类型...
         }
     }
 

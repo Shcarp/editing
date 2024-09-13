@@ -10,9 +10,9 @@ pub struct SceneManager {
 
 impl SceneManager {
     pub fn new(object_manager: Rc<RefCell<ObjectManager>>) -> Self {
-        Self { 
-            object_manager, 
-            last_update: Instant::now() 
+        Self {
+            object_manager,
+            last_update: Instant::now(),
         }
     }
 

@@ -56,10 +56,20 @@ impl Animatable for Tween {
 
 // 一些常用的缓动函数
 pub mod easing {
-    pub fn linear(t: f64) -> f64 { t }
-    pub fn ease_in_quad(t: f64) -> f64 { t * t }
-    pub fn ease_out_quad(t: f64) -> f64 { t * (2.0 - t) }
+    pub fn linear(t: f64) -> f64 {
+        t
+    }
+    pub fn ease_in_quad(t: f64) -> f64 {
+        t * t
+    }
+    pub fn ease_out_quad(t: f64) -> f64 {
+        t * (2.0 - t)
+    }
     pub fn ease_in_out_quad(t: f64) -> f64 {
-        if t < 0.5 { 2.0 * t * t } else { -1.0 + (4.0 - 2.0 * t) * t }
+        if t < 0.5 {
+            2.0 * t * t
+        } else {
+            -1.0 + (4.0 - 2.0 * t) * t
+        }
     }
 }

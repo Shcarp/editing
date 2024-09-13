@@ -1,6 +1,6 @@
 mod rect;
 
-pub use rect::{Rect, RectOptions, AnimationParams};
+pub use rect::{AnimationParams, Rect, RectOptions};
 
 use nalgebra as na;
 use std::fmt::Debug;
@@ -8,7 +8,7 @@ use web_sys::CanvasRenderingContext2d;
 
 use std::any::TypeId;
 
-use crate::helper::{ generate_color_id, generate_id};
+use crate::helper::{generate_color_id, generate_id};
 use crate::renderer::Renderer;
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]

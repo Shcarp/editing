@@ -10,7 +10,7 @@ mod renderer;
 mod scene_manager;
 
 use app::App;
-use element::{Rect, RectOptions, AnimationParams};
+use element::{AnimationParams, Rect, RectOptions};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
