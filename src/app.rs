@@ -247,7 +247,7 @@ impl App {
         let renderer = self.renderer.clone();
 
         *g.borrow_mut() = Some(Closure::new(move || {
-            let scene_manager = scene_manager.borrow_mut();
+            let mut scene_manager = scene_manager.borrow_mut();
             let renderer = renderer.borrow();
             if let Some(renderer) = renderer.as_ref() {
                 scene_manager.render(renderer.as_ref());

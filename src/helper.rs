@@ -8,6 +8,8 @@ use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::js_sys::Date;
 use web_sys::{Document, SvgMatrix, SvgsvgElement};
 
+use crate::log;
+
 pub fn create_svg_matrix() -> Result<SvgMatrix, String> {
     // 获取当前文档
     let document = web_sys::window()
@@ -130,17 +132,71 @@ pub fn normalize_3x3_if_needed(mut matrix: na::Matrix3<f64>) -> na::Matrix3<f64>
 // 将 1 * 6 转为 3 * 3
 pub fn convert_1x6_to_3x3(matrix: na::Matrix1x6<f64>) -> na::Matrix3<f64> {
     na::Matrix3::new(
-        matrix[0], matrix[1], matrix[4], matrix[2], matrix[3], matrix[5], 0.0, 0.0, 1.0,
+        matrix[0], matrix[2], matrix[4], 
+        matrix[1], matrix[3], matrix[5], 
+        0.0, 0.0, 1.0,
     )
-}
+} 
 
 pub fn convert_3x3_to_1x6(matrix: na::Matrix3<f64>) -> na::Matrix1x6<f64> {
     na::Matrix1x6::new(
         matrix[(0, 0)],
-        matrix[(0, 1)],
         matrix[(1, 0)],
+        matrix[(0, 1)],
         matrix[(1, 1)],
         matrix[(0, 2)],
         matrix[(1, 2)],
     )
+}
+
+pub fn get_rotation_matrix(angle_radians: f64) -> na::Matrix3<f64> {
+    const EPSILON: f64 = 1e-6;
+    if angle_radians.abs() < EPSILON {
+        let sin = angle_radians;
+        let cos = 1.0 - 0.5 * angle_radians * angle_radians;
+        na::Matrix3::new(
+            cos, -sin, 0.0, 
+            sin, cos, 0.0,
+            0.0, 0.0, 1.0
+        )
+    } else {
+        let (sin, cos) = angle_radians.sin_cos();
+        na::Matrix3::new(
+            cos, -sin, 0.0, 
+            sin, cos, 0.0, 
+            0.0, 0.0, 1.0
+        )
+    }
+}
+
+pub fn multiply_transform_matrices(a: na::Matrix1x6<f64>, b: na::Matrix1x6<f64>, is_2x2: bool) -> na::Matrix1x6<f64> {
+    let mut result = na::Matrix1x6::zeros();
+
+    // 计算 2x2 或 3x3 部分
+    result[0] = a[0] * b[0] + a[2] * b[1];
+    result[1] = a[1] * b[0] + a[3] * b[1];
+    result[2] = a[0] * b[2] + a[2] * b[3];
+    result[3] = a[1] * b[2] + a[3] * b[3];
+
+    // 如果不是 2x2 矩阵，计算平移部分
+    if !is_2x2 {
+        result[4] = a[0] * b[4] + a[2] * b[5] + a[4];
+        result[5] = a[1] * b[4] + a[3] * b[5] + a[5];
+    }
+
+    result
+}
+
+pub fn print_matrice(name: &str, matrix: na::Matrix1x6<f64>) {
+    log(&format!("{} offset {},{}, {}, {}, {}, {}", name, matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]));
+}
+
+pub fn print_matrix_3x3(name: &str, matrix: na::Matrix3<f64>) {
+    log(&format!(
+        "{} matrix:\n[{:.6}, {:.6}, {:.6}\n {:.6}, {:.6}, {:.6}\n {:.6}, {:.6}, {:.6}]",
+        name,
+        matrix[(0, 0)], matrix[(0, 1)], matrix[(0, 2)],
+        matrix[(1, 0)], matrix[(1, 1)], matrix[(1, 2)],
+        matrix[(2, 0)], matrix[(2, 1)], matrix[(2, 2)]
+    ));
 }

@@ -1,3 +1,4 @@
+mod animation;
 mod app;
 mod bounding_box;
 mod element;
@@ -9,7 +10,7 @@ mod renderer;
 mod scene_manager;
 
 use app::App;
-use element::{Rect, RectOptions, Transformable};
+use element::{Rect, RectOptions, AnimationParams};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -27,7 +28,14 @@ pub fn wasm_main() {
         Ok(_) => {
             log("init success");
             let mut rect = Rect::new(RectOptions::default());
-            rect.translate(100.0, 100.0);
+            let rect_animation = AnimationParams::default()
+                .set_x(300.0)
+                .set_y(300.0)
+                .set_height(400.0)
+                .set_width(400.0)
+                .set_rotation(60.0);
+            // rect.set_position(200.0, 200.0);
+            rect.animate_to(rect_animation, 5.0);
             app.add(rect);
             let _ = app.start_loop();
         }
