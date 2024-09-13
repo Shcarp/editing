@@ -28,14 +28,10 @@ impl ObjectId {
         self.id.clone()
     }
 }
-
-// 渲染 trait
 pub trait Renderable: Debug {
     fn render(&mut self, renderer: &dyn Renderer, delta_time: f64);
     fn id(&self) -> &ObjectId;
 }
-
-// events
 pub trait Eventable {
     fn render_shadow_box(&mut self, renderer: &dyn Renderer);
 }
@@ -75,17 +71,14 @@ pub trait Collidable {
     fn collides_with(&self, other: &dyn Collidable) -> bool;
 }
 
-// 为 Renderable trait 实现检查方法
 pub fn is_renderable<T: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<dyn Renderable>()
 }
 
-// 为 Transformable trait 实现检查方法
 pub fn is_transformable<T: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<dyn Transformable>()
 }
 
-// 为 RenderContainer trait 实现检查方法
 pub fn is_render_container<T: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<dyn RenderContainer<Item = dyn Renderable>>()
 }

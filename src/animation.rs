@@ -15,13 +15,13 @@ pub struct Tween {
 }
 
 impl Tween {
-    pub fn new(start_value: f64, end_value: f64, duration: f64) -> Self {
+    pub fn new(start_value: f64, end_value: f64, duration: f64, easing: fn(f64) -> f64) -> Self {
         Self {
             start_value,
             end_value,
             duration,
             elapsed_time: 0.0,
-            easing: |t| t, 
+            easing: easing,
         }
     }
 

@@ -34,8 +34,7 @@ pub fn wasm_main() {
                 .set_height(400.0)
                 .set_width(400.0)
                 .set_rotation(60.0);
-            // rect.set_position(200.0, 200.0);
-            rect.animate_to(rect_animation, 5.0);
+            rect.animate_to(rect_animation, 3.0, animation::easing::ease_out_quad);
             app.add(rect);
             let _ = app.start_loop();
         }

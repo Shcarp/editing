@@ -91,21 +91,21 @@ impl Rect {
         }
     }
 
-    pub fn animate_to(&mut self, params: AnimationParams, duration: f64) {
+    pub fn animate_to(&mut self, params: AnimationParams, duration: f64, easing: fn(f64) -> f64) {
         if let Some(x) = params.x {
-            self.x_animation = Some(Tween::new(self.x, x, duration));
+            self.x_animation = Some(Tween::new(self.x, x, duration, easing));
         }
         if let Some(y) = params.y {
-            self.y_animation = Some(Tween::new(self.y, y, duration));
+            self.y_animation = Some(Tween::new(self.y, y, duration, easing));
         }
         if let Some(rotation) = params.rotation {
-            self.rotation_animation = Some(Tween::new(self.rotation, rotation, duration));
+            self.rotation_animation = Some(Tween::new(self.rotation, rotation, duration, easing));
         }
         if let Some(width) = params.width {
-            self.width_animation = Some(Tween::new(self.width, width, duration));
+            self.width_animation = Some(Tween::new(self.width, width, duration, easing));
         }
         if let Some(height) = params.height {
-            self.height_animation = Some(Tween::new(self.height, height, duration));
+            self.height_animation = Some(Tween::new(self.height, height, duration, easing));
         }
     }
 
