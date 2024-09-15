@@ -1,5 +1,3 @@
-
-
 pub trait Animatable {
     fn update(&mut self, delta_time: f64);
     fn is_finished(&self) -> bool;
@@ -90,7 +88,7 @@ pub mod easing {
             (t - 1.0) * (2.0 * t - 2.0) * (2.0 * t - 2.0) + 1.0
         }
     }
-    
+
     pub fn ease_in_elastic(t: f64) -> f64 {
         if t == 0.0 || t == 1.0 {
             return t;
@@ -98,7 +96,7 @@ pub mod easing {
         let p = 0.3;
         -(2.0_f64.powf(10.0 * (t - 1.0))) * ((t - 1.0 - p / 4.0) * (2.0 * PI) / p).sin()
     }
-    
+
     pub fn ease_out_elastic(t: f64) -> f64 {
         if t == 0.0 || t == 1.0 {
             return t;
@@ -106,6 +104,4 @@ pub mod easing {
         let p = 0.3;
         2.0_f64.powf(-10.0 * t) * (t - p / 4.0) * (2.0 * PI / p).sin() + 1.0
     }
-    
-    
 }

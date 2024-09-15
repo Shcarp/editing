@@ -61,34 +61,6 @@ pub fn generate_id() -> String {
     format!("{}-{:x}-{:x}", timestamp as u64, random_part, counter)
 }
 
-static USED_COLORS: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
-
-pub fn generate_color_id() -> [i32; 4] {
-    loop {
-        let color: [i32; 4] = generate_random_color();
-        let color_string = color_to_string(&color);
-        let mut used_colors = USED_COLORS.lock().unwrap();
-        if !used_colors.contains(&color_string) {
-            used_colors.insert(color_string);
-            return color;
-        }
-    }
-}
-
-fn generate_random_color() -> [i32; 4] {
-    let mut rng = rand::thread_rng();
-    [
-        rng.gen_range(0..256),
-        rng.gen_range(0..256),
-        rng.gen_range(0..256),
-        255,
-    ]
-}
-
-fn color_to_string(color: &[i32; 4]) -> String {
-    format!("{}-{}-{}-{}", color[0], color[1], color[2], color[3])
-}
-
 pub fn normalize_if_needed(mut matrix: na::Matrix1x6<f64>) -> na::Matrix1x6<f64> {
     const NORMALIZATION_THRESHOLD: f64 = 0.9999;
     let det = matrix[0] * matrix[3] - matrix[1] * matrix[2];

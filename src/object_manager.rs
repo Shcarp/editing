@@ -20,7 +20,7 @@ impl ObjectManager {
         let id = object.id().clone();
         let value: Rc<RefCell<Box<dyn Renderable>>> = Rc::new(RefCell::new(Box::new(object)));
 
-        self.objects.insert(id.value(), value);
+        self.objects.insert(id.value().to_string(), value);
     }
 
     pub fn remove(&mut self, id: &str) -> Option<Rc<RefCell<Box<dyn Renderable>>>> {

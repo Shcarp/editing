@@ -10,9 +10,9 @@ use crate::element::Renderable;
 use crate::events::{get_event_system, AppEvent};
 use crate::helper::request_animation_frame;
 use crate::object_manager::ObjectManager;
+use crate::render_control::get_render_control;
 use crate::scene_manager::SceneManager;
 use crate::scene_manager::SceneManagerOptions;
-use crate::render_control::get_render_control;
 
 #[derive(Debug)]
 pub struct App {
@@ -102,11 +102,11 @@ impl App {
 }
 
 impl App {
-    pub fn start_loop(&self) -> Result<(), JsValue> {    
+    pub fn start_loop(&self) -> Result<(), JsValue> {
         let scene_manager: Rc<RefCell<SceneManager>> = self.scene_manager.clone();
         let object_manager: Rc<RefCell<ObjectManager>> = self.object_manager.clone();
         let render_control = Rc::new(RefCell::new(get_render_control()));
-        
+
         let render_control_clone = render_control.clone();
         let scene_manager_clone = scene_manager.clone();
 
@@ -115,7 +115,7 @@ impl App {
                 let mut render_control = render_control_clone.borrow_mut();
                 if let Some(_messages) = render_control.receive_messages().await {
                     let mut scene_manager = scene_manager_clone.borrow_mut();
-                    scene_manager.render(0.0); 
+                    scene_manager.render(0.0);
                 }
             }
         });
@@ -137,5 +137,4 @@ impl App {
 
         Ok(())
     }
-    
 }

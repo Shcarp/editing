@@ -1,14 +1,14 @@
 use crate::{
-    element::Renderable,
-    helper::{convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr},
+    element::{ObjectId, Renderable},
+    helper::{
+        convert_1x6_to_3x3, convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr,
+    },
     object_manager::ObjectManager,
     renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer},
 };
 use nalgebra as na;
 use std::{
-    cell::RefCell,
-    fmt::{Debug, Formatter},
-    rc::Rc,
+    cell::RefCell, collections::HashMap, fmt::{Debug, Formatter}, rc::Rc
 };
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 use wasm_timer::Instant;
@@ -56,7 +56,10 @@ struct EventHandlers {
 
 impl Debug for EventHandlers {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "EventHandlers {{ on_mouse_move, on_mouse_down, on_mouse_up, on_mouse_leave }}")
+        write!(
+            f,
+            "EventHandlers {{ on_mouse_move, on_mouse_down, on_mouse_up, on_mouse_leave }}"
+        )
     }
 }
 
@@ -80,7 +83,7 @@ pub struct SceneManager {
     rotation: f64,
 
     event_handlers: Rc<RefCell<EventHandlers>>,
-    event_listeners: Rc<RefCell<Vec<Closure<dyn FnMut(MouseEvent)>>>>,
+    event_listeners: Rc<RefCell<HashMap<String, Closure<dyn FnMut(MouseEvent)>>>>,
 }
 
 impl Default for SceneManager {
@@ -174,7 +177,7 @@ impl SceneManager {
             rotation: 0.0,
 
             event_handlers: Rc::new(RefCell::new(EventHandlers::default())),
-            event_listeners: Rc::new(RefCell::new(Vec::new())),
+            event_listeners: Rc::new(RefCell::new(HashMap::new())),
         }
     }
 }
@@ -242,7 +245,6 @@ impl SceneManager {
         )
         .unwrap();
 
-        // 初始化渲染器
         let (renderer, hit_renderer) = match self.context_type {
             CanvasContextType::Canvas2d => {
                 let context: CanvasRenderingContext2d = canvas
@@ -373,7 +375,7 @@ impl SceneManager {
             canvas
                 .borrow_mut()
                 .add_event_listener_with_callback(event_type, closure.as_ref().unchecked_ref())?;
-            self.event_listeners.borrow_mut().push(closure);
+            self.event_listeners.borrow_mut().insert(event_type.to_string(), closure);
         }
 
         Ok(())
@@ -402,17 +404,27 @@ impl SceneManager {
     fn set_default_event_handlers(&mut self) {
         let self_clone = self.clone();
         self.set_on_mouse_move(move |event| {
-            // console::log_1(&format!("mousemove: {:?}", event).into());
             self_clone.get_trigger_object(&event);
         });
-        self.set_on_mouse_down(|event| {
-            // console::log_1(&format!("mousedown: {:?}", event).into());
+        let self_clone_down = self.clone();
+        self.set_on_mouse_down(move |event| {
+            if let Some(obj) = self_clone_down.get_trigger_object(&event) {
+                // console::log_1(&format!("mousedown: {:#?}", obj).into());
+            }
         });
-        self.set_on_mouse_up(|event| {
-            // console::log_1(&format!("mouseup: {:?}", event).into());
+        let self_clone_up = self.clone();
+        self.set_on_mouse_up(move |event| {
+            // let obj = self_clone_up.get_trigger_object(&event);
+            // console::log_1(&format!("mouseup: {:?}", obj).into());
+            if let Some(obj) = self_clone_up.get_trigger_object(&event) {
+                // console::log_1(&format!("mouseup: {:#?}", obj).into());
+            }
         });
-        self.set_on_mouse_leave(|event| {
-            // console::log_1(&format!("mouseleave: {:?}", event).into());
+        let self_clone_leave = self.clone();
+        self.set_on_mouse_leave(move |event| {
+            if let Some(obj) = self_clone_leave.get_trigger_object(&event) {
+                console::log_1(&format!("mouseleave: {:#?}", obj).into());
+            }
         });
     }
 
@@ -436,35 +448,42 @@ impl SceneManager {
     // Add a cleanup method
     pub fn cleanup(&mut self) {
         if let Some(canvas) = &self.canvas {
-            for listener in self.event_listeners.borrow_mut().drain(..) {
-                canvas
-                    .borrow_mut()
-                    .remove_event_listener_with_callback(
-                        "mousemove",
-                        listener.as_ref().unchecked_ref(),
-                    )
-                    .unwrap();
+            for (event_type, listener) in self.event_listeners.borrow_mut().drain() {
+                match canvas.borrow_mut().remove_event_listener_with_callback(
+                    &event_type,
+                    listener.as_ref().unchecked_ref(),
+                ) {
+                    Ok(_) => console::log_1(&format!("Successfully removed {} event listener", event_type).into()),
+                    Err(e) => console::error_1(&format!("Failed to remove {} event listener: {:?}", event_type, e).into()),
+                }
             }
+        } else {
+            console::warn_1(&"Canvas not found during cleanup".into());
         }
     }
 
-    fn get_trigger_object(&self, event: &MouseEvent) -> Option<Rc<RefCell<dyn Renderable>>> {
-        console::log_1(&event);
-        // 从事件中获取点击的 位置, 然后从 hit_canvas 中获取点击的像素
-        // let x = event.client_x() as f64;
-        // let y = event.client_y() as f64;
-        // let point = na::Vector3::new(x, y, 0.0);
+    fn get_trigger_object(&self, event: &MouseEvent) -> Option<Rc<RefCell<Box<dyn Renderable>>>> {
+        let canvas = self.canvas.as_ref()?;
+        let rect = canvas.borrow().get_bounding_client_rect();
+        let dpr = self.dpr.unwrap_or(1.0);
+        
+        let canvas_x = (event.client_x() as f64 - rect.left()) * dpr;
+        let canvas_y = (event.client_y() as f64 - rect.top()) * dpr;
 
-        // let pixel_data = self
-        //     .hit_renderer
-        //     .borrow_mut()
-        //     .as_ref()
-        //     .unwrap()
-        //     .get_image_data(x, y, 1.0, 1.0);
+        let transform = convert_1x6_to_3x3(self.calc_transform());
+        let inverse_transform = transform.try_inverse()?;
+        
+        let original_point = inverse_transform * na::Vector3::new(canvas_x, canvas_y, 1.0);
+        let (original_x, original_y) = (original_point[0] as f64, original_point[1] as f64);
 
-        // console::log_1(&format!("{:?}", pixel_data.0.data()).into());
+        let binding = self.hit_renderer.borrow();
+        let hit_renderer = binding.as_ref()?;
+        let pixel_data = hit_renderer.get_image_data(original_x, original_y, 1.0, 1.0);
+        
+        let color_id = pixel_data.0.data();
+        let object_id = ObjectId::get_id_by_color([color_id[0], color_id[1], color_id[2], color_id[3]])?;
 
-        None
+        self.object_manager.borrow().get(&object_id)
     }
 }
 
