@@ -30,9 +30,6 @@ impl ImageSource for HtmlCanvasElement {
 pub enum ImageDataSource<'a> {
     HtmlImage(Cow<'a, HtmlImageElement>),
     HtmlCanvas(Cow<'a, HtmlCanvasElement>),
-    // 可以添加更多类型，比如:
-    // Svg(Cow<'a, SvgElement>),
-    // Blob(Cow<'a, Blob>),
 }
 
 pub struct Image<'a>(ImageDataSource<'a>);

@@ -4,9 +4,11 @@ use crate::{
     renderer::Renderer,
 };
 use nalgebra as na;
-
+use serde::{Deserialize, Serialize};
 use super::{Eventable, ObjectId, Renderable, Transformable};
-use wasm_timer::Instant;
+use serde::ser::SerializeStruct;
+use dirty_setter::Dirty;
+use std::collections::VecDeque;
 
 pub struct RectOptions {
     x: f64,
@@ -23,8 +25,6 @@ pub struct RectOptions {
     skew_y: f64,
     rotation: f64,
 }
-
-// 为 RectOptions 实现 Default
 
 impl Default for RectOptions {
     fn default() -> Self {
@@ -46,27 +46,123 @@ impl Default for RectOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Dirty)]
 pub struct Rect {
     id: ObjectId,
+    dirty: bool,
+    #[dirty_setter]
     pub x: f64,
+    #[dirty_setter]
     pub y: f64,
+    #[dirty_setter]
     pub width: f64,
+    #[dirty_setter]
     pub height: f64,
+    #[dirty_setter]
     pub fill: String,
+    #[dirty_setter]
     pub stroke: String,
+    #[dirty_setter]
     pub stroke_width: f64,
+    #[dirty_setter]
     pub opacity: f64,
+    #[dirty_setter]
     pub scale_x: f64,
+    #[dirty_setter]
     pub scale_y: f64,
+    #[dirty_setter]
     pub skew_x: f64,
+    #[dirty_setter]
     pub skew_y: f64,
+    #[dirty_setter]
     pub rotation: f64,
     pub x_animation: Option<Tween>,
     pub y_animation: Option<Tween>,
     pub rotation_animation: Option<Tween>,
     pub width_animation: Option<Tween>,
     pub height_animation: Option<Tween>,
+    animation_queue: VecDeque<AnimationStage>,
+}
+
+#[derive(Debug, Clone)]
+struct AnimationStage {
+    params: AnimationParams,
+    duration: f64,
+    easing: fn(f64) -> f64,
+}
+
+impl Serialize for Rect {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        let mut state = serializer.serialize_struct("Rect", 14)?;
+        state.serialize_field("id", &self.id)?;
+        state.serialize_field("x", &self.x)?;
+        state.serialize_field("y", &self.y)?;
+        state.serialize_field("width", &self.width)?;
+        state.serialize_field("height", &self.height)?;
+        state.serialize_field("fill", &self.fill)?;
+        state.serialize_field("stroke", &self.stroke)?;
+        state.serialize_field("stroke_width", &self.stroke_width)?;
+        state.serialize_field("opacity", &self.opacity)?;
+        state.serialize_field("scale_x", &self.scale_x)?;
+        state.serialize_field("scale_y", &self.scale_y)?;
+        state.serialize_field("skew_x", &self.skew_x)?;
+        state.serialize_field("skew_y", &self.skew_y)?;
+        state.serialize_field("rotation", &self.rotation)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Rect {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>
+    {
+        #[derive(Deserialize)]
+        struct RectHelper {
+            id: ObjectId,
+            x: f64,
+            y: f64,
+            width: f64,
+            height: f64,
+            fill: String,
+            stroke: String,
+            stroke_width: f64,
+            opacity: f64,
+            scale_x: f64,
+            scale_y: f64,
+            skew_x: f64,
+            skew_y: f64,
+            rotation: f64,
+        }
+
+        let helper = RectHelper::deserialize(deserializer)?;
+        Ok(Rect {
+            id: helper.id,
+            x: helper.x,
+            y: helper.y,
+            width: helper.width,
+            height: helper.height,
+            fill: helper.fill,
+            stroke: helper.stroke,
+            stroke_width: helper.stroke_width,
+            opacity: helper.opacity,
+            scale_x: helper.scale_x,
+            scale_y: helper.scale_y,
+            skew_x: helper.skew_x,
+            skew_y: helper.skew_y,
+            rotation: helper.rotation,
+            x_animation: None,
+            y_animation: None,
+            rotation_animation: None,
+            width_animation: None,
+            height_animation: None,
+            animation_queue: VecDeque::new(),
+            dirty: true,
+        })
+    }
 }
 
 impl Rect {
@@ -92,24 +188,43 @@ impl Rect {
             rotation_animation: None,
             width_animation: None,
             height_animation: None,
+            animation_queue: VecDeque::new(),
+            dirty: true,
         }
     }
 
     pub fn animate_to(&mut self, params: AnimationParams, duration: f64, easing: fn(f64) -> f64) {
-        if let Some(x) = params.x {
-            self.x_animation = Some(Tween::new(self.x, x, duration, easing));
+        let stage = AnimationStage {
+            params,
+            duration,
+            easing,
+        };
+        self.animation_queue.push_back(stage);
+
+        // If this is the only animation in the queue, start it immediately
+        if self.animation_queue.len() == 1 {
+            self.start_next_animation();
         }
-        if let Some(y) = params.y {
-            self.y_animation = Some(Tween::new(self.y, y, duration, easing));
-        }
-        if let Some(rotation) = params.rotation {
-            self.rotation_animation = Some(Tween::new(self.rotation, rotation, duration, easing));
-        }
-        if let Some(width) = params.width {
-            self.width_animation = Some(Tween::new(self.width, width, duration, easing));
-        }
-        if let Some(height) = params.height {
-            self.height_animation = Some(Tween::new(self.height, height, duration, easing));
+    }
+
+    fn start_next_animation(&mut self) {
+        if let Some(stage) = self.animation_queue.front() {
+            let AnimationStage { params, duration, easing } = stage;
+            if let Some(x) = params.x {
+                self.x_animation = Some(Tween::new(self.x, x, *duration, *easing));
+            }
+            if let Some(y) = params.y {
+                self.y_animation = Some(Tween::new(self.y, y, *duration, *easing));
+            }
+            if let Some(rotation) = params.rotation {
+                self.rotation_animation = Some(Tween::new(self.rotation, rotation, *duration, *easing));
+            }
+            if let Some(width) = params.width {
+                self.width_animation = Some(Tween::new(self.width, width, *duration, *easing));
+            }
+            if let Some(height) = params.height {
+                self.height_animation = Some(Tween::new(self.height, height, *duration, *easing));
+            }
         }
     }
 
@@ -119,11 +234,8 @@ impl Rect {
         if let [a, b, c, d, e, f] = transform_slice {
             renderer.transform(*a, *b, *c, *d, *e, *f);
         }
-
         renderer.set_global_alpha(self.opacity);
-
         renderer.draw_rectangle(0.0, 0.0, self.width, self.height, fill);
-
         let offset = self.stroke_width / 2.0;
         renderer.set_stroke_style(stroke);
         renderer.set_line_width(self.stroke_width);
@@ -133,41 +245,38 @@ impl Rect {
             self.width - self.stroke_width,
             self.height - self.stroke_width,
         );
-
-        let center_x = self.width / 2.0;
-        let center_y = self.height / 2.0;
-        renderer.set_fill_style("red");
-        renderer.begin_path();
-        renderer.arc(center_x, center_y, 5.0, 0.0, 2.0 * std::f64::consts::PI);
-        renderer.fill();
     }
 }
 
 impl Renderable for Rect {
-    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64) {
+    fn id(&self) -> &ObjectId {
+        return &self.id;
+    }
+
+    fn update(&mut self, delta_time: f64) {
         self.update_animations(delta_time);
+    }
+
+    fn set_dirty_flag(&mut self, is_dirty: bool) {
+        self.dirty = is_dirty;
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64) {
         self.render_fn(renderer, &self.fill, &self.stroke)
     }
 
-    fn id(&self) -> &ObjectId {
-        return &self.id;
+    fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64) {
+        self.render_fn(renderer, hit_color, hit_color)
     }
 }
 
 impl Eventable for Rect {
-    fn render_shadow_box(&mut self, renderer: &dyn Renderer) {
-        let color_id = self.id.color_id;
-        let fill_color = format!(
-            "rgba({},{},{}, {})",
-            { color_id[0] },
-            { color_id[1] },
-            { color_id[2] },
-            { color_id[3] }
-        );
-        self.rotation += 1.0;
-        self.render_fn(renderer, &fill_color, &fill_color)
-    }
 }
+
 impl Transformable for Rect {
     fn get_transform(&self) -> nalgebra::Matrix1x6<f64> {
         nalgebra::Matrix1x6::new(
@@ -240,29 +349,33 @@ impl Transformable for Rect {
     }
 
     fn set_rotation(&mut self, angle_degrees: f64) {
-        self.rotation = angle_degrees % 360.0;
+        self.set_rotation(angle_degrees % 360.0)
     }
 
     fn set_position(&mut self, x: f64, y: f64) {
-        self.x = x;
-        self.y = y;
+        self.set_x(x);
+        self.set_y(y);
     }
 
     fn set_scale(&mut self, sx: f64, sy: f64) {
-        self.scale_x = sx;
-        self.scale_y = sy;
+        self.set_scale_x(sx);
+        self.set_scale_y(sy);
+    }
+
+    fn set_skew(&mut self, skew_x: f64, skew_y: f64) {
+        self.set_skew_x(skew_x);
+        self.set_skew_y(skew_y);
     }
 
     fn apply_transform(&mut self, transform: nalgebra::Matrix1x6<f64>) {
-        self.scale_x = transform[0];
-        self.skew_x = transform[1];
-        self.skew_y = transform[2];
-        self.scale_y = transform[3];
-        self.x = transform[4];
-        self.y = transform[5];
+        self.set_x(transform[4]);
+        self.set_y(transform[5]);
+        self.set_scale(transform[0], transform[3]);
+        self.set_skew(transform[1], transform[2]);
 
         let angle_radians = (self.skew_y / self.scale_x).atan();
-        self.rotation = angle_radians.to_degrees();
+        self.set_rotation(angle_radians.to_degrees());
+
     }
 
     fn get_rotation(&self) -> f64 {
@@ -294,23 +407,34 @@ impl Rect {
 
     fn update_animations(&mut self, delta_time: f64) {
         if let Some(x) = Self::update_animation(&mut self.x_animation, delta_time) {
-            self.x = x;
+            self.set_x(x);
         }
         if let Some(y) = Self::update_animation(&mut self.y_animation, delta_time) {
-            self.y = y;
+            self.set_y(y);
         }
         if let Some(rotation) = Self::update_animation(&mut self.rotation_animation, delta_time) {
-            self.rotation = rotation;
+            self.set_rotation(rotation)
         }
         if let Some(width) = Self::update_animation(&mut self.width_animation, delta_time) {
-            self.width = width;
+            self.set_width(width);
         }
         if let Some(height) = Self::update_animation(&mut self.height_animation, delta_time) {
-            self.height = height;
+            self.set_height(height);
+        }
+
+        // Check if all animations are finished
+        if self.x_animation.is_none() && self.y_animation.is_none() &&
+           self.rotation_animation.is_none() && self.width_animation.is_none() &&
+           self.height_animation.is_none() {
+            // Remove the completed animation stage
+            self.animation_queue.pop_front();
+            // Start the next animation if there is one
+            self.start_next_animation();
         }
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct AnimationParams {
     pub x: Option<f64>,
     pub y: Option<f64>,

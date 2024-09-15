@@ -1,0 +1,13 @@
+[package]
+name = "dirty_setter"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Procedural macro for rs-event-emitter"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"

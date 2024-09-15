@@ -4,91 +4,45 @@ use std::fmt::Debug;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{
-    console, js_sys::Function, CanvasRenderingContext2d, HtmlCanvasElement, WebGl2RenderingContext,
-};
+use wasm_bindgen_futures::spawn_local;
+use web_sys::js_sys::Function;
+use web_sys::js_sys::Promise;
 
 use crate::element::Renderable;
 use crate::events::{get_event_system, AppEvent};
 use crate::helper::request_animation_frame;
 use crate::object_manager::ObjectManager;
-use crate::renderer::{Canvas2DRenderer, Renderer};
 use crate::scene_manager::SceneManager;
-
-pub enum CanvasContext {
-    Canvas2d(CanvasRenderingContext2d),
-    WebGl2(WebGl2RenderingContext),
-}
-
-#[derive(Debug)]
-pub enum CanvasContextType {
-    Canvas2d,
-    WebGl2,
-}
+use crate::scene_manager::SceneManagerOptions;
+use crate::render_control::get_render_control;
 
 #[derive(Debug)]
 pub struct App {
-    canvas_id: String,
-    canvas: Option<HtmlCanvasElement>,
     injected_methods: HashMap<String, Function>,
-    context_type: CanvasContextType,
-    renderer: Rc<RefCell<Option<Box<dyn Renderer>>>>,
     pub object_manager: Rc<RefCell<ObjectManager>>,
-    scene_manager: Rc<RefCell<SceneManager>>,
+    pub scene_manager: Rc<RefCell<SceneManager>>,
 }
 
 impl App {
     pub fn new(canvas_id: String) -> Self {
         let object_manager = Rc::new(RefCell::new(ObjectManager::new()));
-        let scene_manager = Rc::new(RefCell::new(SceneManager::new(object_manager.clone())));
+        let mut options = SceneManagerOptions::default();
+        options.canvas_id = canvas_id;
+        options.object_manager = object_manager.clone();
+
+        let scene_manager = Rc::new(RefCell::new(SceneManager::new(options)));
 
         Self {
-            canvas_id,
-            canvas: None,
             injected_methods: HashMap::new(),
-            context_type: CanvasContextType::Canvas2d,
             object_manager: object_manager,
-            renderer: Rc::new(RefCell::new(None)),
             scene_manager,
         }
     }
 
     pub fn init(&mut self) -> Result<(), JsValue> {
-        let window = web_sys::window().unwrap();
-        let document = window.document().unwrap();
-
-        let canvas = document.get_element_by_id(&self.canvas_id).unwrap();
-        let canvas = canvas.dyn_into::<HtmlCanvasElement>().unwrap();
-        // 初始化渲染器
-        let renderer = match self.context_type {
-            CanvasContextType::Canvas2d => {
-                let context: CanvasRenderingContext2d = canvas
-                    .get_context("2d")?
-                    .unwrap()
-                    .dyn_into::<CanvasRenderingContext2d>()?;
-                Rc::new(RefCell::new(Some(
-                    Box::new(Canvas2DRenderer::new(context)) as Box<dyn Renderer>
-                )))
-            }
-            _ => return Err(JsValue::from_str("Unsupported context type")),
-        };
-
-        self.renderer = renderer;
-
-        self.canvas = Some(canvas);
-        self.adjust_for_pixel_ratio()?;
+        self.scene_manager.borrow_mut().init()?;
         let _ = get_event_system().emit(AppEvent::READY.into(), &JsValue::NULL);
         Ok(())
-    }
-
-    pub fn get_pixel_ratio(&self) -> f64 {
-        let window = web_sys::window().expect("Should have a window in this context");
-        window.device_pixel_ratio()
-    }
-
-    pub fn adjust_for_pixel_ratio(&self) -> Result<(), JsValue> {
-        let ratio = self.get_pixel_ratio();
-        self.set_pixel_ratio(ratio)
     }
 
     pub fn is_support_type(&self, context_type: &str) -> bool {
@@ -127,16 +81,6 @@ impl App {
                 method_name
             )))
         }
-    }
-
-    pub fn set_context_type(&mut self, context_type: &str) -> Result<(), JsValue> {
-        let context_type = match context_type {
-            "2d" => CanvasContextType::Canvas2d,
-            "webgl2" => CanvasContextType::WebGl2,
-            _ => return Err(JsValue::from_str("Unsupported context type")),
-        };
-        self.context_type = context_type;
-        Ok(())
     }
 }
 
@@ -184,80 +128,46 @@ impl App {
 }
 
 impl App {
-    pub fn get_context(&self) -> Result<CanvasContext, JsValue> {
-        match self.context_type {
-            CanvasContextType::Canvas2d => Ok(CanvasContext::Canvas2d(
-                self.canvas
-                    .as_ref()
-                    .ok_or("Canvas not found")?
-                    .get_context("2d")?
-                    .ok_or("Failed to get 2D context")?
-                    .dyn_into::<CanvasRenderingContext2d>()?,
-            )),
-            CanvasContextType::WebGl2 => Ok(CanvasContext::WebGl2(
-                self.canvas
-                    .as_ref()
-                    .ok_or("Canvas not found")?
-                    .get_context("webgl2")?
-                    .ok_or("Failed to get WebGL2 context")?
-                    .dyn_into::<WebGl2RenderingContext>()?,
-            )),
-            _ => Err(JsValue::from_str("Unsupported context type")),
-        }
-    }
 
-    pub fn set_pixel_ratio(&self, ratio: f64) -> Result<(), JsValue> {
-        let context = self.get_context()?;
+    pub fn start_loop(&self) -> Result<(), JsValue> {    
+        let scene_manager: Rc<RefCell<SceneManager>> = self.scene_manager.clone();
+        let object_manager: Rc<RefCell<ObjectManager>> = self.object_manager.clone();
+        let render_control = Rc::new(RefCell::new(get_render_control()));
+        
+        let render_control_clone = render_control.clone();
+        let scene_manager_clone = scene_manager.clone();
 
-        console::log_1(&JsValue::from_f64(ratio));
-
-        if let Some(canvas) = self.canvas.as_ref() {
-            let style = canvas.style();
-            let css_width = style
-                .get_property_value("width")?
-                .parse::<f64>()
-                .unwrap_or(1000.0);
-            let css_height = style
-                .get_property_value("height")?
-                .parse::<f64>()
-                .unwrap_or(1000.0);
-
-            canvas.set_width((css_width * ratio) as u32);
-            canvas.set_height((css_height * ratio) as u32);
-
-            style.set_property("width", &format!("{}px", css_width))?;
-            style.set_property("height", &format!("{}px", css_height))?;
-
-            match context {
-                CanvasContext::Canvas2d(context) => context.scale(ratio, ratio)?,
-                CanvasContext::WebGl2(context) => {
-                    context.viewport(0, 0, canvas.width() as i32, canvas.height() as i32)
+        // Existing spawn_local for render control
+        spawn_local(async move {
+            loop {
+                let mut render_control = render_control_clone.borrow_mut();
+                if let Some(_messages) = render_control.receive_messages().await {
+                    let mut scene_manager = scene_manager_clone.borrow_mut();
+                    scene_manager.render(0.0); 
                 }
             }
-        }
-        Ok(())
-    }
+        });
 
-    pub fn start_loop(&self) -> Result<(), JsValue> {
-        console::log_1(&JsValue::from_str("start loop"));
-        let f = Rc::new(RefCell::new(None));
-        let g = f.clone();
+        // New spawn_local for animation loop
+        let scene_manager_clone = scene_manager.clone();
+        let object_manager_clone = object_manager.clone();
+        spawn_local(async move {
+            loop {
+                let delta_time = scene_manager_clone.borrow_mut().update_time();
+                let objects = object_manager_clone.borrow().get_objects();
+                for object in objects {
+                    object.borrow_mut().update(delta_time);
+                }
 
-        let scene_manager: Rc<RefCell<SceneManager>> = self.scene_manager.clone();
-        let renderer = self.renderer.clone();
-
-        *g.borrow_mut() = Some(Closure::new(move || {
-            let mut scene_manager = scene_manager.borrow_mut();
-            let renderer = renderer.borrow();
-            if let Some(renderer) = renderer.as_ref() {
-                scene_manager.render(renderer.as_ref());
+                // Use wasm_bindgen_futures::JsFuture for requestAnimationFrame
+                let promise = Promise::new(&mut |resolve, _| {
+                    request_animation_frame(&resolve);
+                });
+                wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
             }
-
-            request_animation_frame(f.borrow().as_ref().unwrap());
-        }));
-
-        request_animation_frame(g.borrow().as_ref().unwrap());
+        });
 
         Ok(())
     }
+    
 }

@@ -3,15 +3,19 @@ mod rect;
 pub use rect::{AnimationParams, Rect, RectOptions};
 
 use nalgebra as na;
+use std::borrow::BorrowMut;
 use std::fmt::Debug;
 use web_sys::CanvasRenderingContext2d;
 
 use std::any::TypeId;
 
 use crate::helper::{generate_color_id, generate_id};
+use crate::render_control::{get_render_control, RenderMessage};
 use crate::renderer::Renderer;
 
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+use serde::{Serialize, Deserialize};
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct ObjectId {
     id: String,
     color_id: [i32; 4],
@@ -27,13 +31,33 @@ impl ObjectId {
     pub fn value(&self) -> String {
         self.id.clone()
     }
+
+    pub fn color(&self) -> (i32, i32, i32, i32) {
+        (self.color_id[0], self.color_id[1], self.color_id[2], self.color_id[3])
+    }
 }
+
 pub trait Renderable: Debug {
-    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64);
     fn id(&self) -> &ObjectId;
+    fn update(&mut self, delta_time: f64);
+    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64);
+    fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64);
+    fn set_dirty(&mut self) {
+        println!("set_dirty");
+        self.set_dirty_flag(true);
+        get_render_control().add_message(RenderMessage::Update(self.id().value()));
+    }
+
+    fn set_dirty_flag(&mut self, is_dirty: bool);
+    fn is_dirty(&self) -> bool;
 }
+
+pub trait Dirty: Renderable {}
+
 pub trait Eventable {
-    fn render_shadow_box(&mut self, renderer: &dyn Renderer);
+    // fn on(&mut self, event_type: &str, callback: Box<dyn Fn()>);
+    // fn off(&mut self, event_type: &str);
+    // fn trigger(&mut self, event_type: &str);
 }
 
 pub trait Transformable {
@@ -45,10 +69,12 @@ pub trait Transformable {
     fn set_rotation(&mut self, angle_degrees: f64);
     fn set_position(&mut self, x: f64, y: f64);
     fn set_scale(&mut self, sx: f64, sy: f64);
+    fn set_skew(&mut self, skew_x: f64, skew_y: f64);
     fn apply_transform(&mut self, transform: na::Matrix1x6<f64>);
     fn get_rotation(&self) -> f64;
     fn get_position(&self) -> (f64, f64);
     fn get_scale(&self) -> (f64, f64);
+
 
     fn reset_transform(&mut self) {
         self.apply_transform(na::Matrix1x6::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0));

@@ -4,11 +4,10 @@ use rand::Rng;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
+use wasm_bindgen::JsValue;
 use wasm_bindgen::{prelude::Closure, JsCast};
-use web_sys::js_sys::Date;
-use web_sys::{Document, SvgMatrix, SvgsvgElement};
-
-use crate::log;
+use web_sys::js_sys::{Date, Function};
+use web_sys::{console, window, Document, HtmlCanvasElement, SvgMatrix, SvgsvgElement};
 
 pub fn create_svg_matrix() -> Result<SvgMatrix, String> {
     // 获取当前文档
@@ -49,10 +48,10 @@ fn create_temporary_svg(document: &Document) -> Result<SvgsvgElement, String> {
     Ok(svg)
 }
 
-pub fn request_animation_frame(f: &Closure<dyn FnMut()>) -> i32 {
+pub fn request_animation_frame(f: &Function) -> i32 {
     web_sys::window()
         .unwrap()
-        .request_animation_frame(f.as_ref().unchecked_ref())
+        .request_animation_frame(f)
         .expect("should register `requestAnimationFrame` OK")
 }
 
@@ -172,7 +171,7 @@ pub fn multiply_transform_matrices(
     result[2] = a[0] * b[2] + a[2] * b[3];
     result[3] = a[1] * b[2] + a[3] * b[3];
 
-    // 如果不是 2x2 矩阵，计算平移部分
+    // 如果不是 2x2 矩阵，计算平移��分
     if !is_2x2 {
         result[4] = a[0] * b[4] + a[2] * b[5] + a[4];
         result[5] = a[1] * b[4] + a[3] * b[5] + a[5];
@@ -182,14 +181,14 @@ pub fn multiply_transform_matrices(
 }
 
 pub fn print_matrice(name: &str, matrix: na::Matrix1x6<f64>) {
-    log(&format!(
+    console::log_1(&JsValue::from_str(&format!(
         "{} offset {},{}, {}, {}, {}, {}",
         name, matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]
-    ));
+    )));
 }
 
 pub fn print_matrix_3x3(name: &str, matrix: na::Matrix3<f64>) {
-    log(&format!(
+    console::log_1(&JsValue::from_str(&format!(
         "{} matrix:\n[{:.6}, {:.6}, {:.6}\n {:.6}, {:.6}, {:.6}\n {:.6}, {:.6}, {:.6}]",
         name,
         matrix[(0, 0)],
@@ -201,5 +200,41 @@ pub fn print_matrix_3x3(name: &str, matrix: na::Matrix3<f64>) {
         matrix[(2, 0)],
         matrix[(2, 1)],
         matrix[(2, 2)]
-    ));
+    )));
+}
+
+pub fn get_canvas_css_size(canvas: &HtmlCanvasElement) -> Result<(u32, u32), JsValue> {
+    let style = canvas.style();
+    let css_width = style
+        .get_property_value("width")?
+        .parse::<f64>()
+        .unwrap_or(1000.0);
+    let css_height = style
+        .get_property_value("height")?
+        .parse::<f64>()
+        .unwrap_or(1000.0);
+
+    Ok((css_width as u32, css_height as u32))
+}
+
+pub fn get_canvas(canvas_id: &str) -> Result<HtmlCanvasElement, String> {
+    let window = window().ok_or("Failed to get window")?;
+    let document = window.document().ok_or("Failed to get document")?;
+    let element = document
+        .get_element_by_id(canvas_id)
+        .ok_or_else(|| format!("Failed to find canvas with id: {}", canvas_id))?;
+
+    element
+        .dyn_into::<HtmlCanvasElement>()
+        .map_err(|_| format!("Element with id '{}' is not a canvas", canvas_id))
+}
+
+pub fn get_window_dpr() -> Result<f64, JsValue> {
+    let window = window().ok_or("Failed to get window")?;
+    let device_pixel_ratio = window.device_pixel_ratio();
+    console::log_1(&JsValue::from_str(&format!(
+        "device_pixel_ratio: {}",
+        device_pixel_ratio
+    )));
+    Ok(device_pixel_ratio)
 }

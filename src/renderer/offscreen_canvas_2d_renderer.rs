@@ -1,65 +1,43 @@
 use std::{cell::RefCell, f64::consts::PI, rc::Rc};
 use wasm_bindgen::JsValue;
-use web_sys::{CanvasGradient, CanvasPattern, CanvasRenderingContext2d};
-
-use crate::helper::create_svg_matrix;
+use web_sys::OffscreenCanvasRenderingContext2d;
 
 use super::{
     CompositeOperation, Gradient, Image, ImageData, LineCap, LineJoin, Pattern, PatternRepetition,
     Renderer, TextAlign, TextBaseline,
 };
 
-// 为 CanvasGradient 实现 Gradient trait
-impl Gradient for CanvasGradient {
-    fn add_gradient_color_stop(&self, offset: f64, color: &str) {
-        let _ = self.add_color_stop(offset as f32, color);
-    }
+pub struct OffscreenCanvas2DRenderer {
+    context: OffscreenCanvasRenderingContext2d,
 }
 
-impl Pattern for CanvasPattern {
-    fn set_pattern_transform(&self, a: f64, b: f64, c: f64, d: f64, e: f64, f: f64) {
-        let matrix = create_svg_matrix().expect("Failed to create SvgMatrix");
-        matrix.set_a(a as f32);
-        matrix.set_b(b as f32);
-        matrix.set_c(c as f32);
-        matrix.set_d(d as f32);
-        matrix.set_e(e as f32);
-        matrix.set_f(f as f32);
-        self.set_transform(&matrix);
-    }
-}
-
-pub struct Canvas2DRenderer {
-    context: CanvasRenderingContext2d,
-}
-
-impl std::fmt::Debug for Canvas2DRenderer {
+impl std::fmt::Debug for OffscreenCanvas2DRenderer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Canvas2DRenderer")
     }
 }
 
-impl Canvas2DRenderer {
-    pub fn new(context: CanvasRenderingContext2d) -> Self {
-        Canvas2DRenderer { context }
+impl OffscreenCanvas2DRenderer {
+    pub fn new(context: OffscreenCanvasRenderingContext2d) -> Self {
+        OffscreenCanvas2DRenderer { context }
     }
 
     pub fn create_renderer(
-        context: CanvasRenderingContext2d,
+        context: OffscreenCanvasRenderingContext2d,
     ) -> Rc<RefCell<Option<Box<dyn Renderer>>>> {
         Rc::new(RefCell::new(Some(
-            Box::new(Canvas2DRenderer::new(context)) as Box<dyn Renderer>
+            Box::new(OffscreenCanvas2DRenderer::new(context)) as Box<dyn Renderer>,
         )))
     }
 }
 
-impl Renderer for Canvas2DRenderer {
+impl Renderer for OffscreenCanvas2DRenderer {
     fn clear(&self, x: f64, y: f64, width: f64, height: f64) {
         self.context.clear_rect(x, y, width, height);
     }
 
     fn clear_all(&self) {
-        let canvas = self.context.canvas().unwrap();
+        let canvas = self.context.canvas();
         self.context
             .clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
     }

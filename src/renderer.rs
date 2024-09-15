@@ -1,10 +1,12 @@
 mod canvas_2d_renderer;
+mod offscreen_canvas_2d_renderer;
 
 use std::fmt::Debug;
 
 use crate::image::Image;
 
 pub use canvas_2d_renderer::Canvas2DRenderer;
+pub use offscreen_canvas_2d_renderer::OffscreenCanvas2DRenderer;
 
 pub trait Renderer: Debug {
     // 清除方法
