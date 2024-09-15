@@ -24,13 +24,11 @@ pub fn wasm_main() {
     match init_result {
         Ok(_) => {
             console::log_1(&JsValue::from_str("init success"));
-            app.scene_manager.borrow_mut().pan(100.0, 100.0);
+            app.scene_manager.borrow_mut().set_zoom(0.5);
 
-            // 创建100个矩形并添加动画
             for i in 0..100 {
                 let mut rect = Rect::new(RectOptions::default());
                 
-                // 初始位置动画
                 let initial_animation = AnimationParams::default()
                     .set_x((i % 10 * 100) as f64)
                     .set_y((i / 10 * 100) as f64)
@@ -39,14 +37,12 @@ pub fn wasm_main() {
                     .set_rotation((i as f64) * 3.6);
                 rect.animate_to(initial_animation, 3.0, animation::easing::ease_out_quad);
                 
-                // 第二段动画：缩小并旋转
                 let shrink_animation = AnimationParams::default()
                     .set_height(40.0)
                     .set_width(40.0)
                     .set_rotation((i as f64) * 7.2);
                 rect.animate_to(shrink_animation, 2.0, animation::easing::ease_in_out_cubic);
                 
-                // 第三段动画：放大并移动（从第二段动画的结束状态开始）
                 let expand_animation = AnimationParams::default()
                     .set_x((i % 10 * 120) as f64)
                     .set_y((i / 10 * 120) as f64)

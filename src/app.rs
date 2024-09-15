@@ -1,11 +1,9 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
-use web_sys::js_sys::Function;
 use web_sys::js_sys::Promise;
 
 use crate::element::Renderable;
@@ -18,7 +16,6 @@ use crate::render_control::get_render_control;
 
 #[derive(Debug)]
 pub struct App {
-    injected_methods: HashMap<String, Function>,
     pub object_manager: Rc<RefCell<ObjectManager>>,
     pub scene_manager: Rc<RefCell<SceneManager>>,
 }
@@ -33,7 +30,6 @@ impl App {
         let scene_manager = Rc::new(RefCell::new(SceneManager::new(options)));
 
         Self {
-            injected_methods: HashMap::new(),
             object_manager: object_manager,
             scene_manager,
         }
@@ -58,28 +54,6 @@ impl App {
             "2d" => canvas.get_context(context_type).is_ok(),
             "webgl2" => canvas.get_context(context_type).is_ok(),
             _ => false,
-        }
-    }
-
-    pub fn inject_method(&mut self, method_name: &str, method: JsValue) -> Result<(), JsValue> {
-        let function = Function::from(method);
-        self.injected_methods
-            .insert(method_name.to_string(), function);
-        Ok(())
-    }
-
-    pub fn call_injected_method(
-        &self,
-        method_name: &str,
-        args: &JsValue,
-    ) -> Result<JsValue, JsValue> {
-        if let Some(method) = self.injected_methods.get(method_name) {
-            method.call1(&JsValue::NULL, args)
-        } else {
-            Err(JsValue::from_str(&format!(
-                "Method '{}' not found",
-                method_name
-            )))
         }
     }
 }
@@ -128,7 +102,6 @@ impl App {
 }
 
 impl App {
-
     pub fn start_loop(&self) -> Result<(), JsValue> {    
         let scene_manager: Rc<RefCell<SceneManager>> = self.scene_manager.clone();
         let object_manager: Rc<RefCell<ObjectManager>> = self.object_manager.clone();
@@ -137,7 +110,6 @@ impl App {
         let render_control_clone = render_control.clone();
         let scene_manager_clone = scene_manager.clone();
 
-        // Existing spawn_local for render control
         spawn_local(async move {
             loop {
                 let mut render_control = render_control_clone.borrow_mut();
@@ -148,18 +120,14 @@ impl App {
             }
         });
 
-        // New spawn_local for animation loop
         let scene_manager_clone = scene_manager.clone();
         let object_manager_clone = object_manager.clone();
         spawn_local(async move {
             loop {
                 let delta_time = scene_manager_clone.borrow_mut().update_time();
-                let objects = object_manager_clone.borrow().get_objects();
-                for object in objects {
-                    object.borrow_mut().update(delta_time);
-                }
 
-                // Use wasm_bindgen_futures::JsFuture for requestAnimationFrame
+                object_manager_clone.borrow_mut().update_all(delta_time);
+
                 let promise = Promise::new(&mut |resolve, _| {
                     request_animation_frame(&resolve);
                 });

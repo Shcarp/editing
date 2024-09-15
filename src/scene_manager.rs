@@ -1,5 +1,5 @@
 use crate::{
-    helper::{get_canvas, get_canvas_css_size, get_window_dpr},
+    helper::{convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr},
     object_manager::ObjectManager,
     renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer},
 };
@@ -73,42 +73,32 @@ impl SceneManager {
     }
 
     pub fn calc_transform(&self) -> na::Matrix1x6<f64> {
-        // 创建缩放矩阵
         let scale_matrix =
-            na::Matrix3::new(self.zoom, 0.0, 0.0, 0.0, self.zoom, 0.0, 0.0, 0.0, 1.0);
+            na::Matrix3::new(
+                self.zoom, 0.0, 0.0,
+                0.0, self.zoom, 0.0,
+                0.0, 0.0, 1.0
+            );
 
-        // 创建旋转矩阵
         let cos_r = self.rotation.cos();
         let sin_r = self.rotation.sin();
         let rotation_matrix =
-            na::Matrix3::new(cos_r, -sin_r, 0.0, sin_r, cos_r, 0.0, 0.0, 0.0, 1.0);
+            na::Matrix3::new(
+                cos_r, -sin_r, 0.0,
+                sin_r, cos_r, 0.0,
+                0.0, 0.0, 1.0,
+            );
 
-        // 创建平移矩阵
         let translation_matrix = na::Matrix3::new(
-            1.0,
-            0.0,
-            self.offset_x,
-            0.0,
-            1.0,
-            self.offset_y,
-            0.0,
-            0.0,
-            1.0,
+            1.0, 0.0, self.offset_x,
+            0.0, 1.0, self.offset_y,
+            0.0, 0.0, 1.0,
         );
 
-        // 按顺序相乘矩阵：先平移，然后旋转，最后缩放
-        // 这个顺序更适合全局画布变换
         let transform_matrix = scale_matrix * rotation_matrix * translation_matrix;
 
-        // 提取变换矩阵的前两行，形成 1x6 矩阵
-        na::Matrix1x6::new(
-            transform_matrix[(0, 0)],
-            transform_matrix[(0, 1)],
-            transform_matrix[(1, 0)],
-            transform_matrix[(1, 1)],
-            transform_matrix[(0, 2)],
-            transform_matrix[(1, 2)],
-        )
+        convert_3x3_to_1x6(transform_matrix)
+        
     }
 
     pub fn set_zoom(&mut self, zoom: f64) {

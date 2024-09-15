@@ -70,6 +70,12 @@ impl ObjectManager {
         }
     }
 
+    pub fn update_all(&mut self, delta_time: f64) {
+        for object in self.objects.values_mut() {
+            object.borrow_mut().update(delta_time);
+        }
+    }
+
     pub fn get_objects(&self) -> Vec<Rc<RefCell<Box<dyn Renderable>>>> {
         self.objects.values().cloned().collect()
     }

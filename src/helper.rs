@@ -5,24 +5,21 @@ use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use wasm_bindgen::JsValue;
-use wasm_bindgen::{prelude::Closure, JsCast};
+use wasm_bindgen::JsCast;
 use web_sys::js_sys::{Date, Function};
 use web_sys::{console, window, Document, HtmlCanvasElement, SvgMatrix, SvgsvgElement};
 
 pub fn create_svg_matrix() -> Result<SvgMatrix, String> {
-    // 获取当前文档
+
     let document = web_sys::window()
         .ok_or("Failed to get window")?
         .document()
         .ok_or("Failed to get document")?;
 
-    // 创建一个临时的 SVG 元素
     let svg = create_temporary_svg(&document)?;
 
-    // 使用 SVG 元素创建矩阵
     let matrix = svg.create_svg_matrix();
 
-    // 清理：从文档中移除临时 SVG 元素
     document
         .body()
         .ok_or("Failed to get body")?
@@ -156,28 +153,6 @@ pub fn get_rotation_matrix(angle_radians: f64) -> na::Matrix3<f64> {
         let (sin, cos) = angle_radians.sin_cos();
         na::Matrix3::new(cos, -sin, 0.0, sin, cos, 0.0, 0.0, 0.0, 1.0)
     }
-}
-
-pub fn multiply_transform_matrices(
-    a: na::Matrix1x6<f64>,
-    b: na::Matrix1x6<f64>,
-    is_2x2: bool,
-) -> na::Matrix1x6<f64> {
-    let mut result = na::Matrix1x6::zeros();
-
-    // 计算 2x2 或 3x3 部分
-    result[0] = a[0] * b[0] + a[2] * b[1];
-    result[1] = a[1] * b[0] + a[3] * b[1];
-    result[2] = a[0] * b[2] + a[2] * b[3];
-    result[3] = a[1] * b[2] + a[3] * b[3];
-
-    // 如果不是 2x2 矩阵，计算平移��分
-    if !is_2x2 {
-        result[4] = a[0] * b[4] + a[2] * b[5] + a[4];
-        result[5] = a[1] * b[4] + a[3] * b[5] + a[5];
-    }
-
-    result
 }
 
 pub fn print_matrice(name: &str, matrix: na::Matrix1x6<f64>) {
