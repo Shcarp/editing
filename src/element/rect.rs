@@ -1,13 +1,13 @@
+use super::{Eventable, ObjectId, Renderable, Transformable};
 use crate::{
     animation::{Animatable, Tween},
     helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix},
     renderer::Renderer,
 };
-use nalgebra as na;
-use serde::{Deserialize, Serialize};
-use super::{Eventable, ObjectId, Renderable, Transformable};
-use serde::ser::SerializeStruct;
 use dirty_setter::Dirty;
+use nalgebra as na;
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
 pub struct RectOptions {
@@ -118,7 +118,7 @@ impl Serialize for Rect {
 impl<'de> Deserialize<'de> for Rect {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>
+        D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
         struct RectHelper {
@@ -209,7 +209,11 @@ impl Rect {
 
     fn start_next_animation(&mut self) {
         if let Some(stage) = self.animation_queue.front() {
-            let AnimationStage { params, duration, easing } = stage;
+            let AnimationStage {
+                params,
+                duration,
+                easing,
+            } = stage;
             if let Some(x) = params.x {
                 self.x_animation = Some(Tween::new(self.x, x, *duration, *easing));
             }
@@ -217,7 +221,8 @@ impl Rect {
                 self.y_animation = Some(Tween::new(self.y, y, *duration, *easing));
             }
             if let Some(rotation) = params.rotation {
-                self.rotation_animation = Some(Tween::new(self.rotation, rotation, *duration, *easing));
+                self.rotation_animation =
+                    Some(Tween::new(self.rotation, rotation, *duration, *easing));
             }
             if let Some(width) = params.width {
                 self.width_animation = Some(Tween::new(self.width, width, *duration, *easing));
@@ -274,8 +279,7 @@ impl Renderable for Rect {
     }
 }
 
-impl Eventable for Rect {
-}
+impl Eventable for Rect {}
 
 impl Transformable for Rect {
     fn get_transform(&self) -> nalgebra::Matrix1x6<f64> {
@@ -375,7 +379,6 @@ impl Transformable for Rect {
 
         let angle_radians = (self.skew_y / self.scale_x).atan();
         self.set_rotation(angle_radians.to_degrees());
-
     }
 
     fn get_rotation(&self) -> f64 {
@@ -423,9 +426,12 @@ impl Rect {
         }
 
         // Check if all animations are finished
-        if self.x_animation.is_none() && self.y_animation.is_none() &&
-           self.rotation_animation.is_none() && self.width_animation.is_none() &&
-           self.height_animation.is_none() {
+        if self.x_animation.is_none()
+            && self.y_animation.is_none()
+            && self.rotation_animation.is_none()
+            && self.width_animation.is_none()
+            && self.height_animation.is_none()
+        {
             // Remove the completed animation stage
             self.animation_queue.pop_front();
             // Start the next animation if there is one

@@ -13,7 +13,7 @@ use crate::helper::{generate_color_id, generate_id};
 use crate::render_control::{get_render_control, RenderMessage};
 use crate::renderer::Renderer;
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct ObjectId {
@@ -33,7 +33,12 @@ impl ObjectId {
     }
 
     pub fn color(&self) -> (i32, i32, i32, i32) {
-        (self.color_id[0], self.color_id[1], self.color_id[2], self.color_id[3])
+        (
+            self.color_id[0],
+            self.color_id[1],
+            self.color_id[2],
+            self.color_id[3],
+        )
     }
 }
 
@@ -42,8 +47,8 @@ pub trait Renderable: Debug {
     fn update(&mut self, delta_time: f64);
     fn render(&mut self, renderer: &dyn Renderer, delta_time: f64);
     fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64);
+
     fn set_dirty(&mut self) {
-        println!("set_dirty");
         self.set_dirty_flag(true);
         get_render_control().add_message(RenderMessage::Update(self.id().value()));
     }
@@ -74,7 +79,6 @@ pub trait Transformable {
     fn get_rotation(&self) -> f64;
     fn get_position(&self) -> (f64, f64);
     fn get_scale(&self) -> (f64, f64);
-
 
     fn reset_transform(&mut self) {
         self.apply_transform(na::Matrix1x6::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0));

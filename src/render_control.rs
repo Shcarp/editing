@@ -1,10 +1,13 @@
+use futures::{
+    channel::mpsc::{channel, Receiver, Sender},
+    StreamExt,
+};
+use std::collections::VecDeque;
 use std::sync::Once;
-use futures::{channel::mpsc::{channel, Receiver, Sender}, StreamExt};
 use wasm_bindgen::JsValue;
+use wasm_bindgen_futures::spawn_local;
 use wasm_timer::Instant;
 use web_sys::console;
-use std::collections::VecDeque;
-use wasm_bindgen_futures::spawn_local;
 
 static INIT: Once = Once::new();
 static mut GLOBAL_RENDER_CONTROL: Option<RenderControl> = None;
@@ -43,7 +46,7 @@ impl RenderControl {
             RenderMessage::ForceUpdate => {
                 self.flush();
                 self.buffer.clear();
-            },
+            }
             _ => {
                 self.buffer.push_back(message);
                 self.flush_if_needed();
@@ -63,7 +66,10 @@ impl RenderControl {
             let sender = self.sender.clone();
             spawn_local(async move {
                 if let Err(e) = sender.clone().try_send(messages) {
-                    console::log_1(&JsValue::from_str(&format!("Failed to send messages: {:?}", e)));
+                    console::log_1(&JsValue::from_str(&format!(
+                        "Failed to send messages: {:?}",
+                        e
+                    )));
                 }
             });
             self.last_flush = Instant::now();

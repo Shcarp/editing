@@ -109,7 +109,8 @@ pub trait Pattern {
     fn set_pattern_transform(&self, a: f64, b: f64, c: f64, d: f64, e: f64, f: f64);
 }
 
-pub struct ImageData(web_sys::ImageData);
+#[derive(Debug)]
+pub struct ImageData(pub web_sys::ImageData);
 
 pub enum LineCap {
     Butt,

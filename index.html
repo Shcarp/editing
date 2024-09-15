@@ -5,18 +5,12 @@
     <title>WebAssembly Test</title>
 </head>
 <body>
-    <h1>WebAssembly Test</h1>
     <canvas id="TEST_001" width="1000px" height="1000px"></canvas>
-    <div id="wasm-output"></div>
     <script type="module">
         import init, * as wasm from './pkg/graphics.js';
-
         async function run() {
-            // 初始化 WebAssembly 模块
             await init();
-            document.getElementById('wasm-output').textContent = 'WebAssembly module loaded successfully!';
         }
-
         run().catch(console.error);
     </script>
 </body>

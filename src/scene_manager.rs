@@ -1,18 +1,23 @@
 use crate::{
+    element::Renderable,
     helper::{convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr},
     object_manager::ObjectManager,
     renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer},
 };
 use nalgebra as na;
-use std::{cell::RefCell, rc::Rc};
-use wasm_bindgen::{JsCast, JsValue};
+use std::{
+    cell::RefCell,
+    fmt::{Debug, Formatter},
+    rc::Rc,
+};
+use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 use wasm_timer::Instant;
 use web_sys::{
-    console, window, CanvasRenderingContext2d, HtmlCanvasElement, OffscreenCanvas,
+    console, window, CanvasRenderingContext2d, HtmlCanvasElement, MouseEvent, OffscreenCanvas,
     OffscreenCanvasRenderingContext2d,
 };
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CanvasContextType {
     Canvas2d,
     WebGl2,
@@ -41,16 +46,30 @@ impl Default for SceneManagerOptions {
     }
 }
 
-#[derive(Debug)]
+#[derive(Default)]
+struct EventHandlers {
+    on_mouse_move: Option<Rc<RefCell<dyn Fn(&MouseEvent)>>>,
+    on_mouse_down: Option<Rc<RefCell<dyn Fn(&MouseEvent)>>>,
+    on_mouse_up: Option<Rc<RefCell<dyn Fn(&MouseEvent)>>>,
+    on_mouse_leave: Option<Rc<RefCell<dyn Fn(&MouseEvent)>>>,
+}
+
+impl Debug for EventHandlers {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EventHandlers {{ on_mouse_move, on_mouse_down, on_mouse_up, on_mouse_leave }}")
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SceneManager {
     dpr: Option<f64>,
     height: Option<u32>,
     width: Option<u32>,
     context_type: CanvasContextType,
     canvas_id: String,
-    canvas: Option<HtmlCanvasElement>,
+    canvas: Option<Rc<RefCell<HtmlCanvasElement>>>,
     renderer: Rc<RefCell<Option<Box<dyn Renderer>>>>,
-    hit_canvas: Option<OffscreenCanvas>,
+    hit_canvas: Option<Rc<RefCell<OffscreenCanvas>>>,
     hit_renderer: Rc<RefCell<Option<Box<dyn Renderer>>>>,
     object_manager: Rc<RefCell<ObjectManager>>,
     last_update: Instant,
@@ -59,6 +78,9 @@ pub struct SceneManager {
     offset_x: f64,
     offset_y: f64,
     rotation: f64,
+
+    event_handlers: Rc<RefCell<EventHandlers>>,
+    event_listeners: Rc<RefCell<Vec<Closure<dyn FnMut(MouseEvent)>>>>,
 }
 
 impl Default for SceneManager {
@@ -74,31 +96,28 @@ impl SceneManager {
 
     pub fn calc_transform(&self) -> na::Matrix1x6<f64> {
         let scale_matrix =
-            na::Matrix3::new(
-                self.zoom, 0.0, 0.0,
-                0.0, self.zoom, 0.0,
-                0.0, 0.0, 1.0
-            );
+            na::Matrix3::new(self.zoom, 0.0, 0.0, 0.0, self.zoom, 0.0, 0.0, 0.0, 1.0);
 
         let cos_r = self.rotation.cos();
         let sin_r = self.rotation.sin();
         let rotation_matrix =
-            na::Matrix3::new(
-                cos_r, -sin_r, 0.0,
-                sin_r, cos_r, 0.0,
-                0.0, 0.0, 1.0,
-            );
+            na::Matrix3::new(cos_r, -sin_r, 0.0, sin_r, cos_r, 0.0, 0.0, 0.0, 1.0);
 
         let translation_matrix = na::Matrix3::new(
-            1.0, 0.0, self.offset_x,
-            0.0, 1.0, self.offset_y,
-            0.0, 0.0, 1.0,
+            1.0,
+            0.0,
+            self.offset_x,
+            0.0,
+            1.0,
+            self.offset_y,
+            0.0,
+            0.0,
+            1.0,
         );
 
         let transform_matrix = scale_matrix * rotation_matrix * translation_matrix;
 
         convert_3x3_to_1x6(transform_matrix)
-        
     }
 
     pub fn set_zoom(&mut self, zoom: f64) {
@@ -153,6 +172,9 @@ impl SceneManager {
             offset_x: 0.0,
             offset_y: 0.0,
             rotation: 0.0,
+
+            event_handlers: Rc::new(RefCell::new(EventHandlers::default())),
+            event_listeners: Rc::new(RefCell::new(Vec::new())),
         }
     }
 }
@@ -160,23 +182,23 @@ impl SceneManager {
 impl SceneManager {
     pub fn set_pixel_ratio(&mut self, ratio: f64) -> Result<(), JsValue> {
         if let Some(canvas) = self.canvas.as_ref() {
-            let style = canvas.style();
+            let style = canvas.borrow().style();
 
             let css_width = self.width.unwrap() as f64;
             let css_height = self.height.unwrap() as f64;
             let physical_width = (css_width * ratio) as u32;
             let physical_height = (self.width.unwrap() as f64 * ratio) as u32;
 
-            canvas.set_width(physical_width);
-            canvas.set_height(physical_height);
+            canvas.borrow_mut().set_width(physical_width);
+            canvas.borrow_mut().set_height(physical_height);
 
             style.set_property("width", &format!("{}px", css_width))?;
             style.set_property("height", &format!("{}px", css_height))?;
 
             // Update hit_canvas
             if let Some(hit_canvas) = &mut self.hit_canvas {
-                hit_canvas.set_width(physical_width);
-                hit_canvas.set_height(physical_height);
+                hit_canvas.borrow_mut().set_width(physical_width);
+                hit_canvas.borrow_mut().set_height(physical_height);
             }
 
             self.renderer
@@ -242,10 +264,12 @@ impl SceneManager {
 
         self.renderer = renderer;
         self.hit_renderer = hit_renderer;
-        self.canvas = Some(canvas);
-        self.hit_canvas = Some(hit_canvas);
+        self.canvas = Some(Rc::new(RefCell::new(canvas)));
+        self.hit_canvas = Some(Rc::new(RefCell::new(hit_canvas)));
 
         self.set_pixel_ratio(dpr)?;
+
+        self.init_event()?;
         Ok(())
     }
 }
@@ -275,7 +299,6 @@ impl SceneManager {
         render_objects(self, renderer, delta_time);
         renderer.restore();
     }
-
 
     fn prepare_renderer(&self, renderer: &mut Box<dyn Renderer>) {
         let dpr = web_sys::window().unwrap().device_pixel_ratio() as f64;
@@ -307,15 +330,11 @@ impl SceneManager {
         let object_manager = self.object_manager.borrow();
         for object in object_manager.get_objects() {
             let color = object.borrow().id().color();
-            let fill_color = format!(
-                "rgba({},{},{},{})",
-                color.0,
-                color.1,
-                color.2,
-                color.3
-            );
+            let fill_color = format!("rgba({},{},{},{})", color.0, color.1, color.2, color.3);
             renderer.save();
-            object.borrow_mut().render_hit(&mut **renderer, &fill_color, delta_time);
+            object
+                .borrow_mut()
+                .render_hit(&mut **renderer, &fill_color, delta_time);
             renderer.restore();
         }
     }
@@ -326,6 +345,131 @@ impl SceneManager {
         self.last_update = now;
         delta_time
     }
-
 }
 
+impl SceneManager {
+    pub fn init_event(&mut self) -> Result<(), JsValue> {
+        let event_handlers = self.event_handlers.clone();
+        let canvas = self
+            .canvas
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("Canvas not initialized"))?;
+
+        self.create_and_add_event_listeners(canvas.clone(), event_handlers)?;
+        self.set_default_event_handlers();
+
+        Ok(())
+    }
+
+    fn create_and_add_event_listeners(
+        &mut self,
+        canvas: Rc<RefCell<HtmlCanvasElement>>,
+        event_handlers: Rc<RefCell<EventHandlers>>,
+    ) -> Result<(), JsValue> {
+        let event_types = ["mousemove", "mousedown", "mouseup", "mouseleave"];
+
+        for event_type in event_types.iter() {
+            let closure = self.create_event_closure(event_handlers.clone(), event_type);
+            canvas
+                .borrow_mut()
+                .add_event_listener_with_callback(event_type, closure.as_ref().unchecked_ref())?;
+            self.event_listeners.borrow_mut().push(closure);
+        }
+
+        Ok(())
+    }
+
+    fn create_event_closure(
+        &self,
+        event_handlers: Rc<RefCell<EventHandlers>>,
+        event_type: &'static str,
+    ) -> Closure<dyn FnMut(MouseEvent)> {
+        Closure::wrap(Box::new(move |event: MouseEvent| {
+            let handlers = event_handlers.borrow();
+            let handler = match event_type {
+                "mousemove" => &handlers.on_mouse_move,
+                "mousedown" => &handlers.on_mouse_down,
+                "mouseup" => &handlers.on_mouse_up,
+                "mouseleave" => &handlers.on_mouse_leave,
+                _ => return,
+            };
+            if let Some(handler) = handler {
+                handler.borrow()(&event);
+            }
+        }) as Box<dyn FnMut(MouseEvent)>)
+    }
+
+    fn set_default_event_handlers(&mut self) {
+        let self_clone = self.clone();
+        self.set_on_mouse_move(move |event| {
+            // console::log_1(&format!("mousemove: {:?}", event).into());
+            self_clone.get_trigger_object(&event);
+        });
+        self.set_on_mouse_down(|event| {
+            // console::log_1(&format!("mousedown: {:?}", event).into());
+        });
+        self.set_on_mouse_up(|event| {
+            // console::log_1(&format!("mouseup: {:?}", event).into());
+        });
+        self.set_on_mouse_leave(|event| {
+            // console::log_1(&format!("mouseleave: {:?}", event).into());
+        });
+    }
+
+    // Methods to set event handlers
+    pub fn set_on_mouse_move(&mut self, handler: impl Fn(&MouseEvent) + 'static) {
+        self.event_handlers.borrow_mut().on_mouse_move = Some(Rc::new(RefCell::new(handler)));
+    }
+
+    pub fn set_on_mouse_down(&mut self, handler: impl Fn(&MouseEvent) + 'static) {
+        self.event_handlers.borrow_mut().on_mouse_down = Some(Rc::new(RefCell::new(handler)));
+    }
+
+    pub fn set_on_mouse_up(&mut self, handler: impl Fn(&MouseEvent) + 'static) {
+        self.event_handlers.borrow_mut().on_mouse_up = Some(Rc::new(RefCell::new(handler)));
+    }
+
+    pub fn set_on_mouse_leave(&mut self, handler: impl Fn(&MouseEvent) + 'static) {
+        self.event_handlers.borrow_mut().on_mouse_leave = Some(Rc::new(RefCell::new(handler)));
+    }
+
+    // Add a cleanup method
+    pub fn cleanup(&mut self) {
+        if let Some(canvas) = &self.canvas {
+            for listener in self.event_listeners.borrow_mut().drain(..) {
+                canvas
+                    .borrow_mut()
+                    .remove_event_listener_with_callback(
+                        "mousemove",
+                        listener.as_ref().unchecked_ref(),
+                    )
+                    .unwrap();
+            }
+        }
+    }
+
+    fn get_trigger_object(&self, event: &MouseEvent) -> Option<Rc<RefCell<dyn Renderable>>> {
+        console::log_1(&event);
+        // 从事件中获取点击的 位置, 然后从 hit_canvas 中获取点击的像素
+        // let x = event.client_x() as f64;
+        // let y = event.client_y() as f64;
+        // let point = na::Vector3::new(x, y, 0.0);
+
+        // let pixel_data = self
+        //     .hit_renderer
+        //     .borrow_mut()
+        //     .as_ref()
+        //     .unwrap()
+        //     .get_image_data(x, y, 1.0, 1.0);
+
+        // console::log_1(&format!("{:?}", pixel_data.0.data()).into());
+
+        None
+    }
+}
+
+impl Drop for SceneManager {
+    fn drop(&mut self) {
+        self.cleanup();
+    }
+}

@@ -4,13 +4,12 @@ use rand::Rng;
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use wasm_bindgen::JsValue;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
 use web_sys::js_sys::{Date, Function};
 use web_sys::{console, window, Document, HtmlCanvasElement, SvgMatrix, SvgsvgElement};
 
 pub fn create_svg_matrix() -> Result<SvgMatrix, String> {
-
     let document = web_sys::window()
         .ok_or("Failed to get window")?
         .document()
