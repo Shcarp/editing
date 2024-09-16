@@ -92,6 +92,8 @@ pub trait Renderable: Debug {
 
     fn set_dirty_flag(&mut self, is_dirty: bool);
     fn is_dirty(&self) -> bool;
+
+    fn position(&self) -> (f64, f64);
 }
 
 pub trait Dirty: Renderable {}

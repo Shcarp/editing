@@ -76,6 +76,7 @@ pub struct Rect {
     pub skew_y: f64,
     #[dirty_setter]
     pub rotation: f64,
+
     pub x_animation: Option<Tween>,
     pub y_animation: Option<Tween>,
     pub rotation_animation: Option<Tween>,
@@ -277,6 +278,10 @@ impl Renderable for Rect {
     fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64) {
         self.render_fn(renderer, hit_color, hit_color)
     }
+
+    fn position(&self) -> (f64, f64) {
+        (self.x, self.y)
+    }
 }
 
 impl Eventable for Rect {}
@@ -353,7 +358,7 @@ impl Transformable for Rect {
     }
 
     fn set_rotation(&mut self, angle_degrees: f64) {
-        self.set_rotation(angle_degrees % 360.0)
+        self.set_rotation(angle_degrees % 360.0);
     }
 
     fn set_position(&mut self, x: f64, y: f64) {
@@ -416,7 +421,7 @@ impl Rect {
             self.set_y(y);
         }
         if let Some(rotation) = Self::update_animation(&mut self.rotation_animation, delta_time) {
-            self.set_rotation(rotation)
+            self.set_rotation(rotation);
         }
         if let Some(width) = Self::update_animation(&mut self.width_animation, delta_time) {
             self.set_width(width);

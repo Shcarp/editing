@@ -55,7 +55,10 @@ impl RenderControl {
     }
 
     fn flush_if_needed(&mut self) {
-        if self.last_flush.elapsed().as_secs_f64() >= self.flush_interval {
+        let elapsed = self.last_flush.elapsed().as_secs_f64();
+        let current_time = Instant::now().elapsed().as_secs_f64();
+        
+        if (elapsed - current_time) >= self.flush_interval {
             self.flush();
         }
     }

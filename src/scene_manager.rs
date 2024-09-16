@@ -8,7 +8,10 @@ use crate::{
 };
 use nalgebra as na;
 use std::{
-    cell::RefCell, collections::HashMap, fmt::{Debug, Formatter}, rc::Rc
+    cell::RefCell,
+    collections::HashMap,
+    fmt::{Debug, Formatter},
+    rc::Rc,
 };
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 use wasm_timer::Instant;
@@ -39,8 +42,8 @@ impl Default for SceneManagerOptions {
             canvas_id: "canvas".to_string(),
             context_type: Some(CanvasContextType::Canvas2d),
             object_manager: Rc::new(RefCell::new(ObjectManager::new())),
-            height: Some(1000),
-            width: Some(1000),
+            height: None,
+            width: None,
             device_pixel_ratio: Some(window_dpr),
         }
     }
@@ -236,8 +239,19 @@ impl SceneManager {
         let canvas = get_canvas(&self.canvas_id)?;
         let (css_width, css_height) = get_canvas_css_size(&canvas)?;
 
+        console::log_1(&format!("css_width: {}, css_height: {}", css_width, css_height).into());
+
         self.width = Some(self.width.unwrap_or(css_width));
         self.height = Some(self.height.unwrap_or(css_height));
+
+        console::log_1(
+            &format!(
+                "width: {}, height: {}",
+                self.width.unwrap(),
+                self.height.unwrap()
+            )
+            .into(),
+        );
 
         let hit_canvas = OffscreenCanvas::new(
             (self.width.unwrap() as f64 * dpr) as u32,
@@ -375,7 +389,9 @@ impl SceneManager {
             canvas
                 .borrow_mut()
                 .add_event_listener_with_callback(event_type, closure.as_ref().unchecked_ref())?;
-            self.event_listeners.borrow_mut().insert(event_type.to_string(), closure);
+            self.event_listeners
+                .borrow_mut()
+                .insert(event_type.to_string(), closure);
         }
 
         Ok(())
@@ -453,8 +469,12 @@ impl SceneManager {
                     &event_type,
                     listener.as_ref().unchecked_ref(),
                 ) {
-                    Ok(_) => console::log_1(&format!("Successfully removed {} event listener", event_type).into()),
-                    Err(e) => console::error_1(&format!("Failed to remove {} event listener: {:?}", event_type, e).into()),
+                    Ok(_) => console::log_1(
+                        &format!("Successfully removed {} event listener", event_type).into(),
+                    ),
+                    Err(e) => console::error_1(
+                        &format!("Failed to remove {} event listener: {:?}", event_type, e).into(),
+                    ),
                 }
             }
         } else {
@@ -466,22 +486,23 @@ impl SceneManager {
         let canvas = self.canvas.as_ref()?;
         let rect = canvas.borrow().get_bounding_client_rect();
         let dpr = self.dpr.unwrap_or(1.0);
-        
+
         let canvas_x = (event.client_x() as f64 - rect.left()) * dpr;
         let canvas_y = (event.client_y() as f64 - rect.top()) * dpr;
 
         let transform = convert_1x6_to_3x3(self.calc_transform());
         let inverse_transform = transform.try_inverse()?;
-        
+
         let original_point = inverse_transform * na::Vector3::new(canvas_x, canvas_y, 1.0);
         let (original_x, original_y) = (original_point[0] as f64, original_point[1] as f64);
 
         let binding = self.hit_renderer.borrow();
         let hit_renderer = binding.as_ref()?;
         let pixel_data = hit_renderer.get_image_data(original_x, original_y, 1.0, 1.0);
-        
+
         let color_id = pixel_data.0.data();
-        let object_id = ObjectId::get_id_by_color([color_id[0], color_id[1], color_id[2], color_id[3]])?;
+        let object_id =
+            ObjectId::get_id_by_color([color_id[0], color_id[1], color_id[2], color_id[3]])?;
 
         self.object_manager.borrow().get(&object_id)
     }

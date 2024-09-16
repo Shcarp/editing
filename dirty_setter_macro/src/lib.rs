@@ -29,9 +29,10 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
             let setter_name = format_ident!("set_{}", field_name.as_ref().unwrap());
 
             quote! {
-                pub fn #setter_name(&mut self, value: #field_type) {
+                pub fn #setter_name(&mut self, value: #field_type) -> &mut Self {
                     self.#field_name = value;
                     self.set_dirty();
+                    self
                 }
             }
         });

@@ -12,7 +12,7 @@ mod renderer;
 mod scene_manager;
 
 use app::App;
-use element::{AnimationParams, Rect, RectOptions};
+use element::{Rect, RectOptions};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -23,38 +23,28 @@ pub fn wasm_main() {
     let init_result = app.init();
     match init_result {
         Ok(_) => {
-            console::log_1(&JsValue::from_str("init success"));
-            app.scene_manager.borrow_mut().set_zoom(0.5);
+            app.scene_manager.borrow_mut().set_zoom(0.2);
 
-            for i in 0..100 {
+            let _ = app.start_loop();
+
+            let rows = 100;
+            let cols = 100;
+            let cell_size = 31.25;
+
+            for i in 0..(rows * cols) {
                 let mut rect = Rect::new(RectOptions::default());
 
-                let initial_animation = AnimationParams::default()
-                    .set_x((i % 10 * 100) as f64)
-                    .set_y((i / 10 * 100) as f64)
-                    .set_height(80.0)
-                    .set_width(80.0)
+                let row = (i / cols) as f64;
+                let col = (i % cols) as f64;
+
+                rect.set_x(col * cell_size + cell_size / 2.0)
+                    .set_y(row * cell_size + cell_size / 2.0)
+                    .set_height(cell_size)
+                    .set_width(cell_size)
                     .set_rotation((i as f64) * 3.6);
-                rect.animate_to(initial_animation, 3.0, animation::easing::ease_out_quad);
-
-                let shrink_animation = AnimationParams::default()
-                    .set_height(40.0)
-                    .set_width(40.0)
-                    .set_rotation((i as f64) * 7.2);
-                rect.animate_to(shrink_animation, 2.0, animation::easing::ease_in_out_cubic);
-
-                let expand_animation = AnimationParams::default()
-                    .set_x((i % 10 * 120) as f64)
-                    .set_y((i / 10 * 120) as f64)
-                    .set_height(100.0)
-                    .set_width(100.0)
-                    .set_rotation((i as f64) * 7.2); // 保持第二段动画的旋转角度
-                rect.animate_to(expand_animation, 2.5, animation::easing::ease_out_elastic);
 
                 app.add(rect);
             }
-
-            let _ = app.start_loop();
         }
         Err(err) => console::log_1(&err),
     }

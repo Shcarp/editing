@@ -4,6 +4,7 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
+use web_sys::console;
 use web_sys::js_sys::Promise;
 
 use crate::element::Renderable;
@@ -87,14 +88,6 @@ impl App {
         self.object_manager.borrow_mut().clear();
     }
 
-    pub fn update(
-        &self,
-        id: &str,
-        update_fn: impl FnOnce(&mut Rc<RefCell<Box<dyn Renderable>>>),
-    ) -> bool {
-        self.object_manager.borrow_mut().update(id, update_fn)
-    }
-
     pub fn get_objects(&self) -> Vec<Rc<RefCell<Box<dyn Renderable>>>> {
         let res = self.object_manager.borrow().get_objects().clone();
         res
@@ -115,6 +108,7 @@ impl App {
                 let mut render_control = render_control_clone.borrow_mut();
                 if let Some(_messages) = render_control.receive_messages().await {
                     let mut scene_manager = scene_manager_clone.borrow_mut();
+                    console::log_1(&JsValue::from_str("render"));
                     scene_manager.render(0.0);
                 }
             }
@@ -126,7 +120,9 @@ impl App {
             loop {
                 let delta_time = scene_manager_clone.borrow_mut().update_time();
 
-                object_manager_clone.borrow_mut().update_all(delta_time);
+                object_manager_clone
+                    .borrow_mut()
+                    .update_batch(delta_time, 100);
 
                 let promise = Promise::new(&mut |resolve, _| {
                     request_animation_frame(&resolve);
