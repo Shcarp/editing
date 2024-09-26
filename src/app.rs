@@ -122,7 +122,7 @@ impl App {
 
                 object_manager_clone
                     .borrow_mut()
-                    .update_batch(delta_time, 100);
+                    .update_all(delta_time);
 
                 let promise = Promise::new(&mut |resolve, _| {
                     request_animation_frame(&resolve);
