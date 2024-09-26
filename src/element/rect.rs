@@ -1,8 +1,6 @@
-use super::{Eventable, ObjectId, Renderable, Transformable};
+use super::{Dirty, Eventable, ObjectId, Renderable, Transformable};
 use crate::{
-    animation::{Animatable, Tween},
-    helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix},
-    renderer::Renderer,
+    animation::{Animatable, Tween}, helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix}, render_control::{get_render_control, RenderMessage}, renderer::Renderer
 };
 use dirty_setter::Dirty;
 use nalgebra as na;
@@ -254,6 +252,21 @@ impl Rect {
     }
 }
 
+impl Dirty for Rect {
+    fn set_dirty(&mut self) {
+        self.set_dirty_flag(true);
+        get_render_control().add_message(RenderMessage::Update(self.id().value().to_owned()));
+    
+    }
+    fn set_dirty_flag(&mut self, is_dirty: bool) {
+        self.dirty = is_dirty;
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+}
+
 impl Renderable for Rect {
     fn id(&self) -> &ObjectId {
         return &self.id;
@@ -261,14 +274,6 @@ impl Renderable for Rect {
 
     fn update(&mut self, delta_time: f64) {
         self.update_animations(delta_time);
-    }
-
-    fn set_dirty_flag(&mut self, is_dirty: bool) {
-        self.dirty = is_dirty;
-    }
-
-    fn is_dirty(&self) -> bool {
-        self.dirty
     }
 
     fn render(&mut self, renderer: &dyn Renderer, delta_time: f64) {

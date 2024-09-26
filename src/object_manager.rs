@@ -1,7 +1,5 @@
 use crate::element::Renderable;
 use glam::DVec2;
-use wasm_bindgen::JsValue;
-use web_sys::console;
 use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
@@ -9,7 +7,7 @@ use std::{
 }; // Assuming you're using glam for vector math
 
 const GRID_CELL_SIZE: f64 = 100.0;
-const UPDATE_PRIORITY_THRESHOLD: f64 = 0.1; // Seconds
+const UPDATE_PRIORITY_THRESHOLD: f64 = 0.1;
 
 #[derive(Debug)]
 struct GridCell {

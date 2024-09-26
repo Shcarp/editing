@@ -6,8 +6,9 @@ use nalgebra as na;
 use std::fmt::Debug;
 use web_sys::CanvasRenderingContext2d;
 
-use std::any::TypeId;
+use std::any::{Any, TypeId};
 
+use crate::events::get_event_system;
 use crate::helper::generate_id;
 use crate::render_control::{get_render_control, RenderMessage};
 use crate::renderer::Renderer;
@@ -79,31 +80,6 @@ impl ObjectId {
     }
 }
 
-pub trait Renderable: Debug {
-    fn id(&self) -> &ObjectId;
-    fn update(&mut self, delta_time: f64);
-    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64);
-    fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64);
-
-    fn set_dirty(&mut self) {
-        self.set_dirty_flag(true);
-        get_render_control().add_message(RenderMessage::Update(self.id().value().to_owned()));
-    }
-
-    fn set_dirty_flag(&mut self, is_dirty: bool);
-    fn is_dirty(&self) -> bool;
-
-    fn position(&self) -> (f64, f64);
-}
-
-pub trait Dirty: Renderable {}
-
-pub trait Eventable {
-    // fn on(&mut self, event_type: &str, callback: Box<dyn Fn()>);
-    // fn off(&mut self, event_type: &str);
-    // fn trigger(&mut self, event_type: &str);
-}
-
 pub trait Transformable {
     fn get_transform(&self) -> na::Matrix1x6<f64>;
     fn calc_transform(&self) -> na::Matrix1x6<f64>;
@@ -122,6 +98,110 @@ pub trait Transformable {
     fn reset_transform(&mut self) {
         self.apply_transform(na::Matrix1x6::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0));
     }
+}
+
+pub trait Dirty {
+    fn set_dirty(&mut self);
+    fn set_dirty_flag(&mut self, is_dirty: bool);
+    fn is_dirty(&self) -> bool;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BaseEventType {
+    Update,
+    Render,
+    Create,
+    Click,
+    MouseDown,
+    MouseUp,
+    MouseMove,
+    MouseEnter,
+    MouseLeave,
+    KeyDown,
+    KeyUp,
+    KeyPress,
+    Focus,
+    Blur,
+    Resize,
+    DragStart,
+    DragEnd,
+    Drop,
+}
+
+impl Into<String> for BaseEventType {
+    fn into(self) -> String {
+        match self {
+            BaseEventType::Update => "update".to_string(),
+            BaseEventType::Render => "render".to_string(),
+            BaseEventType::Create => "create".to_string(),
+            BaseEventType::Click => "click".to_string(),
+            BaseEventType::MouseDown => "mousedown".to_string(),
+            BaseEventType::MouseUp => "mouseup".to_string(),
+            BaseEventType::MouseMove => "mousemove".to_string(),
+            BaseEventType::MouseEnter => "mouseenter".to_string(),
+            BaseEventType::MouseLeave => "mouseleave".to_string(),
+            BaseEventType::KeyDown => "keydown".to_string(),
+            BaseEventType::KeyUp => "keyup".to_string(),
+            BaseEventType::KeyPress => "keypress".to_string(),
+            BaseEventType::Focus => "focus".to_string(),
+            BaseEventType::Blur => "blur".to_string(),
+            BaseEventType::Resize => "resize".to_string(),
+            BaseEventType::DragStart => "dragstart".to_string(),
+            BaseEventType::DragEnd => "dragend".to_string(),
+            BaseEventType::Drop => "drop".to_string(),
+        }
+    }
+}
+
+pub trait ElementEvent: Any + Debug {
+    fn as_any(&self) -> &dyn Any;
+    fn event_name(&self) -> String;
+}
+
+#[derive(Debug)]
+pub enum EventType {
+    Base(BaseEventType),
+    Element(Box<dyn ElementEvent>),
+}
+
+impl Into<String> for EventType {
+    fn into(self) -> String {
+        match self {
+            EventType::Base(base_event) => base_event.into(),
+            EventType::Element(element_event) => element_event.event_name(),
+        }
+    }
+}
+
+pub trait Eventable {
+    fn on(&mut self, event_type: EventType, callback: Box<dyn Fn()>) {
+        // get_event_system().add_listener(event_type, callback);
+    }
+
+    fn off(&mut self, event_type: EventType) {
+        // Remove the listener for the specified event type
+    }
+
+    fn emit(&mut self, event_type: EventType) {
+        // Emit the specified event
+    }
+
+    fn once(&mut self, event_type: EventType, callback: Box<dyn FnOnce()>) {
+        // Add a one-time listener that automatically removes itself after being called
+    }
+
+    fn event_names(&self) -> Vec<EventType> {
+        // Return a list of all event types that have listeners
+        Vec::new()
+    }
+}
+
+pub trait Renderable: Debug + Transformable + Dirty + Eventable {
+    fn id(&self) -> &ObjectId;
+    fn update(&mut self, delta_time: f64);
+    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64);
+    fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64);
+    fn position(&self) -> (f64, f64);
 }
 
 // 容器 trait
