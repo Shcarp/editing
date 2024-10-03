@@ -31,6 +31,8 @@ impl Pattern for CanvasPattern {
 
 pub struct Canvas2DRenderer {
     context: CanvasRenderingContext2d,
+    locked_fill_color: Option<String>,
+    locked_stroke_color: Option<String>,
 }
 
 impl std::fmt::Debug for Canvas2DRenderer {
@@ -41,7 +43,7 @@ impl std::fmt::Debug for Canvas2DRenderer {
 
 impl Canvas2DRenderer {
     pub fn new(context: CanvasRenderingContext2d) -> Self {
-        Canvas2DRenderer { context }
+        Canvas2DRenderer { context, locked_fill_color: None, locked_stroke_color: None }
     }
 
     pub fn create_renderer(
@@ -50,6 +52,22 @@ impl Canvas2DRenderer {
         Rc::new(RefCell::new(Some(
             Box::new(Canvas2DRenderer::new(context)) as Box<dyn Renderer>
         )))
+    }
+
+    fn set_fill_color(&self, color: &str) {
+        if let Some(locked_color) = &self.locked_fill_color {
+            self.context.set_fill_style(&JsValue::from_str(locked_color));
+        } else {
+            self.context.set_fill_style(&JsValue::from_str(color));
+        }
+    }
+
+    fn set_stroke_color(&self, color: &str) {
+        if let Some(locked_color) = &self.locked_stroke_color {
+            self.context.set_stroke_style(&JsValue::from_str(locked_color));
+        } else {
+            self.context.set_stroke_style(&JsValue::from_str(color));
+        }
     }
 }
 
@@ -65,19 +83,22 @@ impl Renderer for Canvas2DRenderer {
     }
 
     fn draw_rectangle(&self, x: f64, y: f64, width: f64, height: f64, color: &str) {
-        self.context.set_fill_style(&JsValue::from_str(color));
+        // self.context.set_fill_style(&JsValue::from_str(color));
+        self.set_fill_color(color);
         self.context.fill_rect(x, y, width, height);
     }
 
     fn draw_circle(&self, x: f64, y: f64, radius: f64, color: &str) {
-        self.context.set_fill_style(&JsValue::from_str(color));
+        // self.context.set_fill_style(&JsValue::from_str(color));
+        self.set_fill_color(color);
         self.context.begin_path();
         self.context.arc(x, y, radius, 0.0, 2.0 * PI).unwrap();
         self.context.fill();
     }
 
     fn draw_ellipse(&self, x: f64, y: f64, radius_x: f64, radius_y: f64, color: &str) {
-        self.context.set_fill_style(&JsValue::from_str(color));
+        // self.context.set_fill_style(&JsValue::from_str(color));
+        self.set_fill_color(color);
         self.context.begin_path();
         self.context
             .ellipse(x, y, radius_x, radius_y, 0.0, 0.0, 2.0 * PI)
@@ -86,7 +107,8 @@ impl Renderer for Canvas2DRenderer {
     }
 
     fn draw_line(&self, x1: f64, y1: f64, x2: f64, y2: f64, color: &str, width: f64) {
-        self.context.set_stroke_style(&JsValue::from_str(color));
+        // self.context.set_stroke_style(&JsValue::from_str(color));
+        self.set_stroke_color(color);
         self.context.set_line_width(width);
         self.context.begin_path();
         self.context.move_to(x1, y1);
@@ -98,7 +120,8 @@ impl Renderer for Canvas2DRenderer {
         if points.len() < 4 || points.len() % 2 != 0 {
             return;
         }
-        self.context.set_fill_style(&JsValue::from_str(color));
+        // self.context.set_fill_style(&JsValue::from_str(color));
+        self.set_fill_color(color);
         self.context.begin_path();
         self.context.move_to(points[0], points[1]);
         for i in (2..points.len()).step_by(2) {
@@ -229,11 +252,13 @@ impl Renderer for Canvas2DRenderer {
     }
 
     fn set_fill_style(&self, style: &str) {
-        self.context.set_fill_style(&JsValue::from_str(style));
+        // self.context.set_fill_style(&JsValue::from_str(style));
+        self.set_fill_color(style);
     }
 
     fn set_stroke_style(&self, style: &str) {
-        self.context.set_stroke_style(&JsValue::from_str(style));
+        // self.context.set_stroke_style(&JsValue::from_str(style));
+        self.set_stroke_color(style);
     }
 
     fn set_line_width(&self, width: f64) {
@@ -334,5 +359,17 @@ impl Renderer for Canvas2DRenderer {
 
     fn put_image_data(&self, image_data: &ImageData, dx: f64, dy: f64) {
         self.context.put_image_data(&image_data.0, dx, dy).unwrap();
+    }
+
+    fn lock_color(&mut self, color: &str) {
+        self.locked_fill_color = Some(color.to_string());
+        self.locked_stroke_color = Some(color.to_string());
+        self.set_fill_color(color);
+        self.set_stroke_color(color);
+    }
+
+    fn unlock_color(&mut self) {
+        self.locked_fill_color = None;
+        self.locked_stroke_color = None;
     }
 }

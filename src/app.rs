@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -6,6 +7,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::console;
 use web_sys::js_sys::Promise;
+use wasm_timer::Instant;
 
 use crate::element::Renderable;
 use crate::events::{get_event_system, AppEvent};
@@ -103,13 +105,47 @@ impl App {
         let render_control_clone = render_control.clone();
         let scene_manager_clone = scene_manager.clone();
 
+        let update_object_manager = object_manager.clone();
         spawn_local(async move {
+            let mut loop_count = 0;
+            let mut total_receive_time = std::time::Duration::new(0, 0);
+            let mut total_update_time = std::time::Duration::new(0, 0);
+            let mut total_render_time = std::time::Duration::new(0, 0);
+            let mut total_loop_time = std::time::Duration::new(0, 0);
+
             loop {
+                let loop_start = Instant::now();
+
                 let mut render_control = render_control_clone.borrow_mut();
+                let receive_start = Instant::now();
                 if let Some(_messages) = render_control.receive_messages().await {
-                    let mut scene_manager = scene_manager_clone.borrow_mut();
-                    console::log_1(&JsValue::from_str("render"));
-                    scene_manager.render(0.0);
+                    let receive_duration = receive_start.elapsed();
+                    total_receive_time += receive_duration;
+
+                    let update_start = Instant::now();
+                    update_object_manager.borrow_mut().update_object_from_message(&_messages);
+                    let update_duration = update_start.elapsed();
+                    total_update_time += update_duration;
+
+                    let render_start = Instant::now();
+                    let scene_manager = scene_manager_clone.borrow_mut();
+                    scene_manager.render();
+                    let render_duration = render_start.elapsed();
+                    total_render_time += render_duration;
+                }
+
+                let loop_duration = loop_start.elapsed();
+                total_loop_time += loop_duration;
+
+                loop_count += 1;
+
+                if loop_count % 100 == 0 {
+                    console::log_1(&format!("Average times over {} loops:", loop_count).into());
+                    console::log_1(&format!("Receive messages: {:?}", total_receive_time / loop_count).into());
+                    console::log_1(&format!("Update objects: {:?}", total_update_time / loop_count).into());
+                    console::log_1(&format!("Render: {:?}", total_render_time / loop_count).into());
+                    console::log_1(&format!("Total loop: {:?}", total_loop_time / loop_count).into());
+                    console::log_1(&"------------------------".into());
                 }
             }
         });
@@ -120,9 +156,7 @@ impl App {
             loop {
                 let delta_time = scene_manager_clone.borrow_mut().update_time();
 
-                object_manager_clone
-                    .borrow_mut()
-                    .update_all(delta_time);
+                object_manager_clone.borrow_mut().update_all(delta_time);
 
                 let promise = Promise::new(&mut |resolve, _| {
                     request_animation_frame(&resolve);

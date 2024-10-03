@@ -2,7 +2,9 @@ use futures::{
     channel::mpsc::{channel, Receiver, Sender},
     StreamExt,
 };
+use serde_json::Value;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::sync::Once;
 use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::spawn_local;
@@ -22,9 +24,9 @@ pub fn get_render_control() -> &'static mut RenderControl {
 }
 
 pub struct RenderControl {
-    sender: Sender<Vec<RenderMessage>>,
-    receiver: Receiver<Vec<RenderMessage>>,
-    buffer: VecDeque<RenderMessage>,
+    sender: Sender<Vec<UpdateMessage>>,
+    receiver: Receiver<Vec<UpdateMessage>>,
+    buffer: VecDeque<UpdateMessage>,
     last_flush: Instant,
     flush_interval: f64,
 }
@@ -41,14 +43,22 @@ impl RenderControl {
         }
     }
 
-    pub fn add_message(&mut self, message: RenderMessage) {
+    pub fn add_message(&mut self, message: UpdateMessage) {
         match message {
-            RenderMessage::ForceUpdate => {
+            UpdateMessage::ForceUpdate => {
                 self.flush();
                 self.buffer.clear();
             }
-            _ => {
-                self.buffer.push_back(message);
+            UpdateMessage::Update(update_body) => {
+                // Insert the message into the buffer based on priority
+                let insert_position = self.buffer.iter().position(|m| {
+                    if let UpdateMessage::Update(existing_body) = m {
+                        existing_body.priority < update_body.priority
+                    } else {
+                        false
+                    }
+                }).unwrap_or(self.buffer.len());
+                self.buffer.insert(insert_position, UpdateMessage::Update(update_body));
                 self.flush_if_needed();
             }
         }
@@ -57,7 +67,7 @@ impl RenderControl {
     fn flush_if_needed(&mut self) {
         let elapsed = self.last_flush.elapsed().as_secs_f64();
         let current_time = Instant::now().elapsed().as_secs_f64();
-        
+
         if (elapsed - current_time) >= self.flush_interval {
             self.flush();
         }
@@ -65,12 +75,12 @@ impl RenderControl {
 
     fn flush(&mut self) {
         if !self.buffer.is_empty() {
-            let messages: Vec<RenderMessage> = self.buffer.drain(..).collect();
-            let sender = self.sender.clone();
+            let messages: Vec<UpdateMessage> = self.buffer.drain(..).collect();
+            let sender: Sender<Vec<UpdateMessage>> = self.sender.clone();
             spawn_local(async move {
                 if let Err(e) = sender.clone().try_send(messages) {
                     console::log_1(&JsValue::from_str(&format!(
-                        "Failed to send messages: {:?}",
+                        "Failed to send messages: {:#?}",
                         e
                     )));
                 }
@@ -79,13 +89,42 @@ impl RenderControl {
         }
     }
 
-    pub async fn receive_messages(&mut self) -> Option<Vec<RenderMessage>> {
+    pub async fn receive_messages(&mut self) -> Option<Vec<UpdateMessage>> {
         self.receiver.next().await
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum RenderMessage {
-    Update(String),
+pub enum UpdateType {
+    ObjectUpdate(String),
+    // SceneUpdate,
+    // CameraUpdate,
+    // LightingUpdate,
+    // MaterialUpdate(String),
+    // TextureUpdate(String),
+}
+
+#[derive(Clone, Debug)]
+pub enum UpdateMessage {
     ForceUpdate,
+    Update(UpdateBody),
+}
+
+#[derive(Clone, Debug)]
+pub struct UpdateBody {
+    pub update_type: UpdateType,
+    pub data: Value,
+    pub timestamp: f64,
+    pub priority: u8,
+}
+
+impl UpdateBody {
+    pub fn new(update_type: UpdateType, data: Value) -> Self {
+        Self {
+            update_type,
+            data,
+            timestamp: Instant::now().elapsed().as_secs_f64(),
+            priority: 0, // 默认优先级为0
+        }
+    }
 }

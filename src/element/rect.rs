@@ -1,12 +1,16 @@
 use super::{Dirty, Eventable, ObjectId, Renderable, Transformable};
 use crate::{
-    animation::{Animatable, Tween}, helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix}, render_control::{get_render_control, RenderMessage}, renderer::Renderer
+    animation::{Animatable, Tween},
+    helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix},
+    render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType},
+    renderer::Renderer,
 };
 use dirty_setter::Dirty;
 use nalgebra as na;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
+use serde_json::Value;
 
 pub struct RectOptions {
     x: f64,
@@ -255,8 +259,6 @@ impl Rect {
 impl Dirty for Rect {
     fn set_dirty(&mut self) {
         self.set_dirty_flag(true);
-        get_render_control().add_message(RenderMessage::Update(self.id().value().to_owned()));
-    
     }
     fn set_dirty_flag(&mut self, is_dirty: bool) {
         self.dirty = is_dirty;
@@ -267,21 +269,52 @@ impl Dirty for Rect {
     }
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct RectUpdateBoadyData {
+    x: Option<f64>,
+    y: Option<f64>,
+    width: Option<f64>,
+    height: Option<f64>,
+    fill: Option<String>,
+    stroke:  Option<String>,
+    stroke_width: Option<f64>,
+    opacity: Option<f64>,
+    scale_x: Option<f64>,
+    scale_y: Option<f64>,
+    skew_x: Option<f64>,
+    skew_y: Option<f64>,
+    rotation: Option<f64>,
+}
+
 impl Renderable for Rect {
     fn id(&self) -> &ObjectId {
         return &self.id;
     }
 
-    fn update(&mut self, delta_time: f64) {
+    fn update(&mut self, data: Value) {
+        let update_value: RectUpdateBoadyData = serde_json::from_value(data).unwrap();
+
+        self.x = update_value.x.unwrap_or(self.x);
+        self.y = update_value.y.unwrap_or(self.y);
+        self.width = update_value.width.unwrap_or(self.width);
+        self.height = update_value.height.unwrap_or(self.height);
+        self.fill = update_value.fill.unwrap_or(self.fill.clone());
+        self.stroke = update_value.stroke.unwrap_or(self.stroke.clone());
+        self.stroke_width = update_value.stroke_width.unwrap_or(self.stroke_width);
+        self.opacity = update_value.opacity.unwrap_or(self.opacity);
+        self.scale_x = update_value.scale_x.unwrap_or(self.scale_x);
+        self.scale_y = update_value.scale_y.unwrap_or(self.scale_y);
+        self.skew_x = update_value.skew_x.unwrap_or(self.skew_x);
+        self.skew_y = update_value.skew_y.unwrap_or(self.skew_y);
+        self.rotation = update_value.rotation.unwrap_or(self.rotation);
+    }
+    
+    fn update_frame(&mut self, delta_time: f64) {
         self.update_animations(delta_time);
     }
 
-    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64) {
+    fn render(&self, renderer: &dyn Renderer) {
         self.render_fn(renderer, &self.fill, &self.stroke)
-    }
-
-    fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64) {
-        self.render_fn(renderer, hit_color, hit_color)
     }
 
     fn position(&self) -> (f64, f64) {

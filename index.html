@@ -3,9 +3,15 @@
 <head>
     <meta charset="utf-8">
     <title>WebAssembly Test</title>
+    <style>
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
 </head>
 <body>
-    <canvas id="TEST_001" width="100vh" height="100vh"></canvas>
+    <canvas id="TEST_001"></canvas>
     <script type="module">
         import init, * as wasm from './pkg/graphics.js';
         async function run() {

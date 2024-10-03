@@ -23,16 +23,16 @@ pub fn wasm_main() {
     let init_result = app.init();
     match init_result {
         Ok(_) => {
-            app.scene_manager.borrow_mut().set_zoom(0.2);
+            // app.scene_manager.borrow_mut().set_zoom(0.2);
 
             let _ = app.start_loop();
 
-            for i in 0..10000 {
+            for i in 0..100 {
                 let mut rect = Rect::new(RectOptions::default());
 
                 let initial_animation = AnimationParams::default()
-                    .set_x((i % 10 * 100) as f64)
-                    .set_y((i / 10 * 100) as f64)
+                    .set_x((i % 13 * 100) as f64)
+                    .set_y((i / 13 * 100) as f64)
                     .set_height(80.0)
                     .set_width(80.0)
                     .set_rotation((i as f64) * 3.6);

@@ -1,9 +1,6 @@
 use nalgebra as na;
-use once_cell::sync::Lazy;
 use rand::Rng;
-use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::js_sys::{Date, Function};
@@ -150,15 +147,41 @@ pub fn print_matrix_3x3(name: &str, matrix: na::Matrix3<f64>) {
 }
 
 pub fn get_canvas_css_size(canvas: &HtmlCanvasElement) -> Result<(u32, u32), JsValue> {
-    let style = canvas.style();
-    let css_width = style
-        .get_property_value("width")?
-        .parse::<f64>()
-        .unwrap_or(1000.0);
-    let css_height = style
-        .get_property_value("height")?
-        .parse::<f64>()
-        .unwrap_or(1000.0);
+    let window = window().expect("no global `window` exists");
+    let computed_style = window
+        .get_computed_style(canvas)?
+        .expect("failed to get computed style");
+
+    let width = computed_style.get_property_value("width")?;
+    let height = computed_style.get_property_value("height")?;
+
+    console::log_1(&JsValue::from_str(&format!("计算后的宽度: '{}'", width)));
+    console::log_1(&JsValue::from_str(&format!("计算后的高度: '{}'", height)));
+
+    let parse_px = |s: &str| -> f64 {
+        s.trim_end_matches("px").parse().unwrap_or_else(|_| {
+            console::log_1(&JsValue::from_str(&format!(
+                "无法解析 '{}', 使用 offsetWidth/Height",
+                s
+            )));
+            -1.0
+        })
+    };
+
+    let mut css_width = parse_px(&width);
+    let mut css_height = parse_px(&height);
+
+    if css_width < 0.0 {
+        css_width = canvas.offset_width() as f64;
+    }
+    if css_height < 0.0 {
+        css_height = canvas.offset_height() as f64;
+    }
+
+    console::log_1(&JsValue::from_str(&format!(
+        "最终宽度: {}, 高度: {}",
+        css_width, css_height
+    )));
 
     Ok((css_width as u32, css_height as u32))
 }

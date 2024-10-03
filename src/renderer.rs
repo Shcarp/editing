@@ -97,6 +97,12 @@ pub trait Renderer: Debug {
     // 像素操作
     fn get_image_data(&self, sx: f64, sy: f64, sw: f64, sh: f64) -> ImageData;
     fn put_image_data(&self, image_data: &ImageData, dx: f64, dy: f64);
+
+    // 锁定颜色
+    fn lock_color(&mut self, color: &str);
+
+    // 解锁颜色
+    fn unlock_color(&mut self);
 }
 
 // 辅助类型定义

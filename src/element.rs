@@ -3,23 +3,22 @@ mod rect;
 pub use rect::{AnimationParams, Rect, RectOptions};
 
 use nalgebra as na;
+use serde_json::Value;
 use std::fmt::Debug;
 use web_sys::CanvasRenderingContext2d;
 
 use std::any::{Any, TypeId};
 
-use crate::events::get_event_system;
 use crate::helper::generate_id;
-use crate::render_control::{get_render_control, RenderMessage};
 use crate::renderer::Renderer;
 
 use serde::{Deserialize, Serialize};
 
-use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use rand::Rng;
+use std::collections::HashMap;
 
-static mut ID_COLOR_MAP: Lazy<(HashMap<String, [u8; 4]>, HashMap<[u8; 4], String>)> = 
+static mut ID_COLOR_MAP: Lazy<(HashMap<String, [u8; 4]>, HashMap<[u8; 4], String>)> =
     Lazy::new(|| (HashMap::new(), HashMap::new()));
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
@@ -198,10 +197,15 @@ pub trait Eventable {
 
 pub trait Renderable: Debug + Transformable + Dirty + Eventable {
     fn id(&self) -> &ObjectId;
-    fn update(&mut self, delta_time: f64);
-    fn render(&mut self, renderer: &dyn Renderer, delta_time: f64);
-    fn render_hit(&mut self, renderer: &dyn Renderer, hit_color: &str, delta_time: f64);
+
+    // 更新对象属性
+    fn update(&mut self, data: Value);
+    
+    fn render(&self, renderer: &dyn Renderer);
     fn position(&self) -> (f64, f64);
+
+    // 每一帧更新
+    fn update_frame(&mut self, delta_time: f64);
 }
 
 // 容器 trait

@@ -48,3 +48,7 @@ dirty_setter = { path = "./dirty_setter_macro" }
 into_static_str = {path = "./into_static_str"}
 glam = "0.29.0"
 rs-event-emitter = { version = "3.0.3", features = ["wasm"] }
+
+
+[profile.release]
+debug = true

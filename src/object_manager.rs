@@ -1,4 +1,4 @@
-use crate::element::Renderable;
+use crate::{element::Renderable, render_control::{UpdateBody, UpdateMessage, UpdateType}};
 use glam::DVec2;
 use std::{
     cell::RefCell,
@@ -6,8 +6,8 @@ use std::{
     rc::Rc,
 }; // Assuming you're using glam for vector math
 
+
 const GRID_CELL_SIZE: f64 = 100.0;
-const UPDATE_PRIORITY_THRESHOLD: f64 = 0.1;
 
 #[derive(Debug)]
 struct GridCell {
@@ -165,7 +165,7 @@ impl ObjectManager {
             if let Some(id) = self.update_queue.pop_front() {
                 if let Some(object_data) = self.objects.get_mut(&id) {
                     let old_position = object_data.position;
-                    object_data.object.borrow_mut().update(delta_time);
+                    object_data.object.borrow_mut().update_frame(delta_time);
                     let new_position = DVec2::new(
                         object_data.object.borrow().position().0,
                         object_data.object.borrow().position().1,
@@ -207,7 +207,7 @@ impl ObjectManager {
             if let Some(object_data) = self.objects.get_mut(&id) {
                 if self.total_time - object_data.last_update > UPDATE_PRIORITY_THRESHOLD {
                     let old_position = object_data.position;
-                    object_data.object.borrow_mut().update(delta_time);
+                    object_data.object.borrow_mut().update_frame(delta_time);
                     let new_position = DVec2::new(
                         object_data.object.borrow().position().0,
                         object_data.object.borrow().position().1,
@@ -228,7 +228,7 @@ impl ObjectManager {
         self.total_time += delta_time;
         for (id, object_data) in self.objects.iter_mut() {
             let old_position = object_data.position;
-            object_data.object.borrow_mut().update(delta_time);
+            object_data.object.borrow_mut().update_frame(delta_time);
             let new_position = DVec2::new(
                 object_data.object.borrow().position().0,
                 object_data.object.borrow().position().1,
@@ -248,5 +248,41 @@ impl ObjectManager {
             .values()
             .map(|data| data.object.clone())
             .collect()
+    }
+
+    pub fn update_object_from_message(&mut self, messages: &Vec<UpdateMessage>) {
+        let mut update_objects: HashMap<String, Vec<UpdateBody>> = HashMap::new();
+        for message in messages.iter() {
+            if let UpdateMessage::Update(update_body) = message {
+                match &update_body.update_type {
+                    UpdateType::ObjectUpdate(id) => {
+                        update_objects
+                            .entry(id.clone())
+                            .or_insert_with(Vec::new)
+                            .push(update_body.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        for (object_id, updates) in update_objects.iter() {
+            match self.objects.get_mut(object_id) {
+                Some(data) => {
+                    let mut object = data.object.borrow_mut();
+                    for update in updates.iter() {
+                        match &update.update_type {
+                            UpdateType::ObjectUpdate(id) => {
+                                if id == object_id {
+                                    object.update(update.data.clone());
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                None => todo!(),
+            }
+        }
     }
 }

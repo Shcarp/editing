@@ -30,7 +30,15 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
 
             quote! {
                 pub fn #setter_name(&mut self, value: #field_type) -> &mut Self {
-                    self.#field_name = value;
+                    let value = serde_json::json!({
+                        stringify!(#field_name): value
+                    });
+
+                    let id = self.id().value().to_owned();
+                    get_render_control().add_message(UpdateMessage::Update(UpdateBody::new(
+                        UpdateType::ObjectUpdate(id),
+                        value
+                    )));
                     self.set_dirty();
                     self
                 }

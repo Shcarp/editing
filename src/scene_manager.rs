@@ -1,10 +1,7 @@
 use crate::{
-    element::{ObjectId, Renderable},
-    helper::{
+    element::{ObjectId, Renderable}, helper::{
         convert_1x6_to_3x3, convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr,
-    },
-    object_manager::ObjectManager,
-    renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer},
+    }, object_manager::ObjectManager,renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer}
 };
 use nalgebra as na;
 use std::{
@@ -187,19 +184,21 @@ impl SceneManager {
 
 impl SceneManager {
     pub fn set_pixel_ratio(&mut self, ratio: f64) -> Result<(), JsValue> {
+        // let (css_width, css_height) = get_canvas_css_size(&canvas)?;
         if let Some(canvas) = self.canvas.as_ref() {
-            let style = canvas.borrow().style();
+            let size_canvas = get_canvas(&self.canvas_id)?;
+            let (css_width, css_height) = get_canvas_css_size(&size_canvas)?;
 
-            let css_width = self.width.unwrap() as f64;
-            let css_height = self.height.unwrap() as f64;
-            let physical_width = (css_width * ratio) as u32;
-            let physical_height = (self.width.unwrap() as f64 * ratio) as u32;
+            let physical_width = (css_width as f64 * ratio) as u32;
+            let physical_height = (css_height as f64 * ratio) as u32;
+
+            console::log_1(&JsValue::from_str(&format!(
+                "css_width: {}, css_height: {}, physical_width: {}, physical_height: {}",
+                css_width, css_height, physical_width, physical_height
+            )));
 
             canvas.borrow_mut().set_width(physical_width);
             canvas.borrow_mut().set_height(physical_height);
-
-            style.set_property("width", &format!("{}px", css_width))?;
-            style.set_property("height", &format!("{}px", css_height))?;
 
             // Update hit_canvas
             if let Some(hit_canvas) = &mut self.hit_canvas {
@@ -236,22 +235,12 @@ impl SceneManager {
 impl SceneManager {
     pub fn init(&mut self) -> Result<(), JsValue> {
         let dpr = get_window_dpr()?;
+        console::log_1(&JsValue::from_str(&format!("dpr: {}", dpr)));
         let canvas = get_canvas(&self.canvas_id)?;
         let (css_width, css_height) = get_canvas_css_size(&canvas)?;
 
-        console::log_1(&format!("css_width: {}, css_height: {}", css_width, css_height).into());
-
         self.width = Some(self.width.unwrap_or(css_width));
         self.height = Some(self.height.unwrap_or(css_height));
-
-        console::log_1(
-            &format!(
-                "width: {}, height: {}",
-                self.width.unwrap(),
-                self.height.unwrap()
-            )
-            .into(),
-        );
 
         let hit_canvas = OffscreenCanvas::new(
             (self.width.unwrap() as f64 * dpr) as u32,
@@ -283,7 +272,7 @@ impl SceneManager {
         self.canvas = Some(Rc::new(RefCell::new(canvas)));
         self.hit_canvas = Some(Rc::new(RefCell::new(hit_canvas)));
 
-        self.set_pixel_ratio(dpr)?;
+        self.set_pixel_ratio(dpr * 2.0)?;
 
         self.init_event()?;
         Ok(())
@@ -291,31 +280,30 @@ impl SceneManager {
 }
 
 impl SceneManager {
-    pub fn render(&mut self, delta_time: f64) {
-        if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
-            self.render_fn(renderer, delta_time, &Self::render_objects);
+    pub fn render(&self) {
+        let mut renderer = self.renderer.borrow_mut();
+        let mut hit_renderer = self.hit_renderer.borrow_mut();
+        
+        if let (Some(renderer), Some(hit_renderer)) = (renderer.as_mut(), hit_renderer.as_mut()) {
+            self.render_fn(renderer, hit_renderer, Self::render_objects);
         }
-        self.update_hit_canvas();
     }
 
-    fn update_hit_canvas(&self) {
-        let mut binding = self.hit_renderer.borrow_mut();
-        let hit_renderer = binding.as_mut().unwrap();
-        self.render_fn(hit_renderer, 0.0, &Self::render_hit_objects);
-    }
-
-    fn render_fn<F>(&self, renderer: &mut Box<dyn Renderer>, delta_time: f64, render_objects: F)
+    fn render_fn<F>(&self, renderer: &mut Box<dyn Renderer>, hit_renderer: &mut Box<dyn Renderer>, render_objects: F)
     where
-        F: Fn(&Self, &mut Box<dyn Renderer>, f64),
+        F: Fn(&Self, &mut Box<dyn Renderer>, &mut Box<dyn Renderer>),
     {
+        hit_renderer.clear_all();
         renderer.clear_all();
         renderer.save();
+        hit_renderer.save();
         self.prepare_renderer(renderer);
         self.apply_transform(renderer);
-        render_objects(self, renderer, delta_time);
+        render_objects(self, renderer, hit_renderer);
         renderer.restore();
+        hit_renderer.restore();
     }
-
+    
     fn prepare_renderer(&self, renderer: &mut Box<dyn Renderer>) {
         let dpr = web_sys::window().unwrap().device_pixel_ratio() as f64;
         renderer.set_line_width(1.0 / dpr);
@@ -333,24 +321,22 @@ impl SceneManager {
         );
     }
 
-    fn render_objects(&self, renderer: &mut Box<dyn Renderer>, delta_time: f64) {
+    fn render_objects(&self, renderer: &mut Box<dyn Renderer>, hit_renderer: &mut Box<dyn Renderer>) {
         let object_manager = self.object_manager.borrow();
         for object in object_manager.get_objects() {
+            let object_borrow = object.borrow();
             renderer.save();
-            object.borrow_mut().render(&mut **renderer, delta_time);
-            renderer.restore();
-        }
-    }
+            object_borrow.render(&mut **renderer);
 
-    fn render_hit_objects(&self, renderer: &mut Box<dyn Renderer>, delta_time: f64) {
-        let object_manager = self.object_manager.borrow();
-        for object in object_manager.get_objects() {
-            let color = object.borrow().id().color();
+            let color = object_borrow.id().color();
             let fill_color = format!("rgba({},{},{},{})", color.0, color.1, color.2, color.3);
-            renderer.save();
-            object
-                .borrow_mut()
-                .render_hit(&mut **renderer, &fill_color, delta_time);
+
+            hit_renderer.save();
+            hit_renderer.lock_color(&fill_color);
+            object_borrow.render(&mut **hit_renderer,);
+            hit_renderer.unlock_color();
+            hit_renderer.restore();
+
             renderer.restore();
         }
     }
