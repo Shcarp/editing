@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -40,6 +39,7 @@ impl App {
 
     pub fn init(&mut self) -> Result<(), JsValue> {
         self.scene_manager.borrow_mut().init()?;
+        self.scene_manager.borrow_mut().set_context_type("2d")?;
         let _ = get_event_system().emit(AppEvent::READY.into(), &JsValue::NULL);
         Ok(())
     }
@@ -153,15 +153,33 @@ impl App {
         let scene_manager_clone = scene_manager.clone();
         let object_manager_clone = object_manager.clone();
         spawn_local(async move {
+            let mut loop_count = 0;
+            let mut total_update_time = std::time::Duration::new(0, 0);
+            let mut total_loop_time = std::time::Duration::new(0, 0);
             loop {
+                let loop_start = Instant::now();
                 let delta_time = scene_manager_clone.borrow_mut().update_time();
-
+                let update_start = Instant::now();
                 object_manager_clone.borrow_mut().update_all(delta_time);
+                let update_duration = update_start.elapsed();
+                total_update_time += update_duration;
 
                 let promise = Promise::new(&mut |resolve, _| {
                     request_animation_frame(&resolve);
                 });
+
+                let loop_duration = loop_start.elapsed();
+                total_loop_time += loop_duration;
+
                 wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+                loop_count += 1;
+
+                if loop_count % 100 == 0 {
+                    console::log_1(&format!("Average times over {} loops:", loop_count).into());
+                    console::log_1(&format!("Update objects: {:?}", total_update_time / loop_count).into());
+                    console::log_1(&format!("Total loop: {:?}", total_loop_time / loop_count).into());
+                    console::log_1(&"------------------------".into());
+                }
             }
         });
 

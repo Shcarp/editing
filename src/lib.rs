@@ -23,11 +23,11 @@ pub fn wasm_main() {
     let init_result = app.init();
     match init_result {
         Ok(_) => {
-            app.scene_manager.borrow_mut().set_zoom(0.1);
+            // app.scene_manager.borrow_mut().set_zoom(0.1);
 
             let _ = app.start_loop();
 
-            for i in 0..10000 {
+            for i in 0..100 {
                 let mut rect = Rect::new(RectOptions::default());
 
                 let initial_animation = AnimationParams::default()
@@ -49,11 +49,17 @@ pub fn wasm_main() {
                     .set_y((i / 10 * 120) as f64)
                     .set_height(100.0)
                     .set_width(100.0)
-                    .set_rotation((i as f64) * 7.2); // 保持第二段动画的旋转角度
+                    .set_rotation((i as f64) * 7.2); 
                 rect.animate_to(expand_animation, 2.5, animation::easing::ease_out_quad);
 
                 app.add(rect);
             }
+
+            app.scene_manager.borrow_mut().set_zoom(0.1);
+
+            app.scene_manager.borrow_mut().set_offset(100.0, 100.0);
+
+            // app.scene_manager.borrow_mut().set_rotation(0.5);
         }
         Err(err) => console::log_1(&err),
     }

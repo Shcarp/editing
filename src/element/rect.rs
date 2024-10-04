@@ -5,7 +5,7 @@ use crate::{
     render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType},
     renderer::Renderer,
 };
-use dirty_setter::Dirty;
+use dirty_setter::DirtySetter;
 use nalgebra as na;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
@@ -48,7 +48,7 @@ impl Default for RectOptions {
     }
 }
 
-#[derive(Debug, Clone, Dirty)]
+#[derive(Debug, Clone, DirtySetter)]
 pub struct Rect {
     id: ObjectId,
     dirty: bool,
@@ -292,21 +292,7 @@ impl Renderable for Rect {
     }
 
     fn update(&mut self, data: Value) {
-        let update_value: RectUpdateBoadyData = serde_json::from_value(data).unwrap();
-
-        self.x = update_value.x.unwrap_or(self.x);
-        self.y = update_value.y.unwrap_or(self.y);
-        self.width = update_value.width.unwrap_or(self.width);
-        self.height = update_value.height.unwrap_or(self.height);
-        self.fill = update_value.fill.unwrap_or(self.fill.clone());
-        self.stroke = update_value.stroke.unwrap_or(self.stroke.clone());
-        self.stroke_width = update_value.stroke_width.unwrap_or(self.stroke_width);
-        self.opacity = update_value.opacity.unwrap_or(self.opacity);
-        self.scale_x = update_value.scale_x.unwrap_or(self.scale_x);
-        self.scale_y = update_value.scale_y.unwrap_or(self.scale_y);
-        self.skew_x = update_value.skew_x.unwrap_or(self.skew_x);
-        self.skew_y = update_value.skew_y.unwrap_or(self.skew_y);
-        self.rotation = update_value.rotation.unwrap_or(self.rotation);
+        self.update(data);
     }
     
     fn update_frame(&mut self, delta_time: f64) {
@@ -452,22 +438,21 @@ impl Rect {
     }
 
     fn update_animations(&mut self, delta_time: f64) {
-        if let Some(x) = Self::update_animation(&mut self.x_animation, delta_time) {
-            self.set_x(x);
-        }
-        if let Some(y) = Self::update_animation(&mut self.y_animation, delta_time) {
-            self.set_y(y);
-        }
-        if let Some(rotation) = Self::update_animation(&mut self.rotation_animation, delta_time) {
-            self.set_rotation(rotation);
-        }
-        if let Some(width) = Self::update_animation(&mut self.width_animation, delta_time) {
-            self.set_width(width);
-        }
-        if let Some(height) = Self::update_animation(&mut self.height_animation, delta_time) {
-            self.set_height(height);
-        }
+        let x = Self::update_animation(&mut self.x_animation, delta_time);
+        let y = Self::update_animation(&mut self.y_animation, delta_time);
+        let width = Self::update_animation(&mut self.width_animation, delta_time);
+        let height = Self::update_animation(&mut self.height_animation, delta_time);
+        let rotation = Self::update_animation(&mut self.rotation_animation, delta_time);
 
+        self.set_multiple(DirtyUpdates {
+            x: x,
+            y: y,
+            width: width,
+            height: height,
+            rotation: rotation,
+            ..Default::default()
+        });
+        
         // Check if all animations are finished
         if self.x_animation.is_none()
             && self.y_animation.is_none()

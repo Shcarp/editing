@@ -97,11 +97,7 @@ impl RenderControl {
 #[derive(Clone, Debug)]
 pub enum UpdateType {
     ObjectUpdate(String),
-    // SceneUpdate,
-    // CameraUpdate,
-    // LightingUpdate,
-    // MaterialUpdate(String),
-    // TextureUpdate(String),
+    SceneUpdate,
 }
 
 #[derive(Clone, Debug)]
