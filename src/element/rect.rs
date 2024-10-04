@@ -7,7 +7,6 @@ use crate::{
 };
 use dirty_setter::DirtySetter;
 use nalgebra as na;
-use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use serde_json::Value;
@@ -49,6 +48,8 @@ impl Default for RectOptions {
 }
 
 #[derive(Debug, Clone, DirtySetter)]
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct Rect {
     id: ObjectId,
     dirty: bool,
@@ -79,11 +80,17 @@ pub struct Rect {
     #[dirty_setter]
     pub rotation: f64,
 
+    #[serde(skip)]
     pub x_animation: Option<Tween>,
+    #[serde(skip)]
     pub y_animation: Option<Tween>,
+    #[serde(skip)]
     pub rotation_animation: Option<Tween>,
+    #[serde(skip)]
     pub width_animation: Option<Tween>,
+    #[serde(skip)]
     pub height_animation: Option<Tween>,
+    #[serde(skip)]
     animation_queue: VecDeque<AnimationStage>,
 }
 
@@ -92,80 +99,6 @@ struct AnimationStage {
     params: AnimationParams,
     duration: f64,
     easing: fn(f64) -> f64,
-}
-
-impl Serialize for Rect {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::ser::Serializer,
-    {
-        let mut state = serializer.serialize_struct("Rect", 14)?;
-        state.serialize_field("id", &self.id)?;
-        state.serialize_field("x", &self.x)?;
-        state.serialize_field("y", &self.y)?;
-        state.serialize_field("width", &self.width)?;
-        state.serialize_field("height", &self.height)?;
-        state.serialize_field("fill", &self.fill)?;
-        state.serialize_field("stroke", &self.stroke)?;
-        state.serialize_field("stroke_width", &self.stroke_width)?;
-        state.serialize_field("opacity", &self.opacity)?;
-        state.serialize_field("scale_x", &self.scale_x)?;
-        state.serialize_field("scale_y", &self.scale_y)?;
-        state.serialize_field("skew_x", &self.skew_x)?;
-        state.serialize_field("skew_y", &self.skew_y)?;
-        state.serialize_field("rotation", &self.rotation)?;
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Rect {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct RectHelper {
-            id: ObjectId,
-            x: f64,
-            y: f64,
-            width: f64,
-            height: f64,
-            fill: String,
-            stroke: String,
-            stroke_width: f64,
-            opacity: f64,
-            scale_x: f64,
-            scale_y: f64,
-            skew_x: f64,
-            skew_y: f64,
-            rotation: f64,
-        }
-
-        let helper = RectHelper::deserialize(deserializer)?;
-        Ok(Rect {
-            id: helper.id,
-            x: helper.x,
-            y: helper.y,
-            width: helper.width,
-            height: helper.height,
-            fill: helper.fill,
-            stroke: helper.stroke,
-            stroke_width: helper.stroke_width,
-            opacity: helper.opacity,
-            scale_x: helper.scale_x,
-            scale_y: helper.scale_y,
-            skew_x: helper.skew_x,
-            skew_y: helper.skew_y,
-            rotation: helper.rotation,
-            x_animation: None,
-            y_animation: None,
-            rotation_animation: None,
-            width_animation: None,
-            height_animation: None,
-            animation_queue: VecDeque::new(),
-            dirty: true,
-        })
-    }
 }
 
 impl Rect {
