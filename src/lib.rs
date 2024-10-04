@@ -31,25 +31,25 @@ pub fn wasm_main() {
                 let mut rect = Rect::new(RectOptions::default());
 
                 let initial_animation = AnimationParams::default()
-                    .set_x((i % 13 * 100) as f64)
-                    .set_y((i / 13 * 100) as f64)
-                    .set_height(80.0)
-                    .set_width(80.0)
-                    .set_rotation((i as f64) * 3.6);
+                    .x((i % 13 * 100) as f64)
+                    .y((i / 13 * 100) as f64)
+                    .height(80.0)
+                    .width(80.0)
+                    .rotation((i as f64) * 3.6);
                 rect.animate_to(initial_animation, 3.0, animation::easing::ease_out_quad);
 
                 let shrink_animation = AnimationParams::default()
-                    .set_height(40.0)
-                    .set_width(40.0)
-                    .set_rotation((i as f64) * 7.2);
+                    .height(40.0)
+                    .width(40.0)
+                    .rotation((i as f64) * 7.2);
                 rect.animate_to(shrink_animation, 2.0, animation::easing::ease_in_out_cubic);
 
                 let expand_animation = AnimationParams::default()
-                    .set_x((i % 10 * 120) as f64)
-                    .set_y((i / 10 * 120) as f64)
-                    .set_height(100.0)
-                    .set_width(100.0)
-                    .set_rotation((i as f64) * 7.2); 
+                    .x((i % 10 * 120) as f64)
+                    .y((i / 10 * 120) as f64)
+                    .height(100.0)
+                    .width(100.0)
+                    .rotation((i as f64) * 7.2); 
                 rect.animate_to(expand_animation, 2.5, animation::easing::ease_out_quad);
 
                 app.add(rect);

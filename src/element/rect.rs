@@ -424,51 +424,38 @@ impl Transformable for Rect {
 }
 
 impl Rect {
-    fn update_animation(animation: &mut Option<Tween>, delta_time: f64) -> Option<f64> {
-        if let Some(ref mut anim) = animation {
-            anim.update(delta_time);
-            let value = anim.value();
-            if anim.is_finished() {
-                *animation = None;
-            }
-            Some(value)
-        } else {
-            None
-        }
-    }
-
     fn update_animations(&mut self, delta_time: f64) {
-        let x = Self::update_animation(&mut self.x_animation, delta_time);
-        let y = Self::update_animation(&mut self.y_animation, delta_time);
-        let width = Self::update_animation(&mut self.width_animation, delta_time);
-        let height = Self::update_animation(&mut self.height_animation, delta_time);
-        let rotation = Self::update_animation(&mut self.rotation_animation, delta_time);
+        let mut updates = DirtyUpdates::default();
+        let mut all_finished = true;
 
-        self.set_multiple(DirtyUpdates {
-            x: x,
-            y: y,
-            width: width,
-            height: height,
-            rotation: rotation,
-            ..Default::default()
-        });
+        for (animation, field) in [
+            (&mut self.x_animation, &mut updates.x),
+            (&mut self.y_animation, &mut updates.y),
+            (&mut self.width_animation, &mut updates.width),
+            (&mut self.height_animation, &mut updates.height),
+            (&mut self.rotation_animation, &mut updates.rotation),
+        ] {
+            if let Some(ref mut anim) = animation {
+                anim.update(delta_time);
+                *field = Some(anim.value());
+                if anim.is_finished() {
+                    *animation = None;
+                } else {
+                    all_finished = false;
+                }
+            }
+        }
+
+        self.set_multiple(updates);
         
-        // Check if all animations are finished
-        if self.x_animation.is_none()
-            && self.y_animation.is_none()
-            && self.rotation_animation.is_none()
-            && self.width_animation.is_none()
-            && self.height_animation.is_none()
-        {
-            // Remove the completed animation stage
+        if all_finished {
             self.animation_queue.pop_front();
-            // Start the next animation if there is one
             self.start_next_animation();
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AnimationParams {
     pub x: Option<f64>,
     pub y: Option<f64>,
@@ -478,40 +465,32 @@ pub struct AnimationParams {
 }
 
 impl AnimationParams {
-    pub fn set_x(mut self, x: f64) -> Self {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn x(mut self, x: f64) -> Self {
         self.x = Some(x);
         self
     }
 
-    pub fn set_y(mut self, y: f64) -> Self {
+    pub fn y(mut self, y: f64) -> Self {
         self.y = Some(y);
         self
     }
 
-    pub fn set_rotation(mut self, rotation: f64) -> Self {
+    pub fn rotation(mut self, rotation: f64) -> Self {
         self.rotation = Some(rotation);
         self
     }
 
-    pub fn set_width(mut self, width: f64) -> Self {
+    pub fn width(mut self, width: f64) -> Self {
         self.width = Some(width);
         self
     }
 
-    pub fn set_height(mut self, height: f64) -> Self {
+    pub fn height(mut self, height: f64) -> Self {
         self.height = Some(height);
         self
-    }
-}
-
-impl Default for AnimationParams {
-    fn default() -> Self {
-        Self {
-            x: None,
-            y: None,
-            rotation: None,
-            width: None,
-            height: None,
-        }
     }
 }
