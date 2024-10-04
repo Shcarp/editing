@@ -23,11 +23,11 @@ pub fn wasm_main() {
     let init_result = app.init();
     match init_result {
         Ok(_) => {
-            // app.scene_manager.borrow_mut().set_zoom(0.2);
+            app.scene_manager.borrow_mut().set_zoom(0.1);
 
             let _ = app.start_loop();
 
-            for i in 0..100 {
+            for i in 0..10000 {
                 let mut rect = Rect::new(RectOptions::default());
 
                 let initial_animation = AnimationParams::default()

@@ -8,6 +8,7 @@ use std::{
 
 
 const GRID_CELL_SIZE: f64 = 100.0;
+const UPDATE_PRIORITY_THRESHOLD: f64 = 1.0;
 
 #[derive(Debug)]
 struct GridCell {
