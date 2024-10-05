@@ -1,7 +1,11 @@
 use crate::{
-    element::{ObjectId, Renderable}, helper::{
+    element::{ObjectId, Renderable},
+    helper::{
         convert_1x6_to_3x3, convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr,
-    }, object_manager::ObjectManager, render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType}, renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer}
+    },
+    object_manager::ObjectManager,
+    render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType},
+    renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer},
 };
 use nalgebra as na;
 use serde_json::Value;
@@ -14,7 +18,8 @@ use std::{
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 use wasm_timer::Instant;
 use web_sys::{
-    console, window, CanvasRenderingContext2d, HtmlCanvasElement, MouseEvent, OffscreenCanvas, OffscreenCanvasRenderingContext2d
+    console, window, CanvasRenderingContext2d, HtmlCanvasElement, MouseEvent, OffscreenCanvas,
+    OffscreenCanvasRenderingContext2d,
 };
 
 #[derive(Debug, Clone)]
@@ -156,7 +161,10 @@ impl SceneManager {
 
     pub fn set_transform_direct(&self) {
         self.transform_dirty.set(true);
-        get_render_control().add_message(UpdateMessage::Update(UpdateBody::new(UpdateType::SceneUpdate, Value::Null)));
+        get_render_control().add_message(UpdateMessage::Update(UpdateBody::new(
+            UpdateType::SceneUpdate,
+            Value::Null,
+        )));
     }
 }
 
@@ -283,7 +291,7 @@ impl SceneManager {
     pub fn render(&self) {
         let mut renderer = self.renderer.borrow_mut();
         let mut hit_renderer = self.hit_renderer.borrow_mut();
-        
+
         if let (Some(renderer), Some(hit_renderer)) = (renderer.as_mut(), hit_renderer.as_mut()) {
             self.render_scene(renderer, hit_renderer);
         }
@@ -294,8 +302,12 @@ impl SceneManager {
         self.render_objects(renderer, hit_renderer);
         self.restore_renderers(renderer, hit_renderer);
     }
-    
-    fn prepare_renderers(&self, renderer: &mut Box<dyn Renderer>, hit_renderer: &mut Box<dyn Renderer>) {
+
+    fn prepare_renderers(
+        &self,
+        renderer: &mut Box<dyn Renderer>,
+        hit_renderer: &mut Box<dyn Renderer>,
+    ) {
         let dpr = web_sys::window().unwrap().device_pixel_ratio() as f64;
         let transform = self.calc_transform();
 
@@ -304,17 +316,25 @@ impl SceneManager {
             r.save();
             r.set_line_width(1.0 / dpr);
             r.transform(
-                transform[0], transform[1], transform[2],
-                transform[3], transform[4], transform[5],
+                transform[0],
+                transform[1],
+                transform[2],
+                transform[3],
+                transform[4],
+                transform[5],
             );
         }
     }
 
-    fn render_objects(&self, renderer: &mut Box<dyn Renderer>, hit_renderer: &mut Box<dyn Renderer>) {
+    fn render_objects(
+        &self,
+        renderer: &mut Box<dyn Renderer>,
+        hit_renderer: &mut Box<dyn Renderer>,
+    ) {
         let object_manager = self.object_manager.borrow();
         for object in object_manager.get_objects() {
             let object_borrow = object.borrow();
-            
+
             // 渲染到主画布
             renderer.save();
             object_borrow.render(&mut **renderer);
@@ -331,7 +351,11 @@ impl SceneManager {
         }
     }
 
-    fn restore_renderers(&self, renderer: &mut Box<dyn Renderer>, hit_renderer: &mut Box<dyn Renderer>) {
+    fn restore_renderers(
+        &self,
+        renderer: &mut Box<dyn Renderer>,
+        hit_renderer: &mut Box<dyn Renderer>,
+    ) {
         renderer.restore();
         hit_renderer.restore();
     }

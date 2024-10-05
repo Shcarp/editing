@@ -43,7 +43,11 @@ impl std::fmt::Debug for Canvas2DRenderer {
 
 impl Canvas2DRenderer {
     pub fn new(context: CanvasRenderingContext2d) -> Self {
-        Canvas2DRenderer { context, locked_fill_color: None, locked_stroke_color: None }
+        Canvas2DRenderer {
+            context,
+            locked_fill_color: None,
+            locked_stroke_color: None,
+        }
     }
 
     pub fn create_renderer(
@@ -56,7 +60,8 @@ impl Canvas2DRenderer {
 
     fn set_fill_color(&self, color: &str) {
         if let Some(locked_color) = &self.locked_fill_color {
-            self.context.set_fill_style(&JsValue::from_str(locked_color));
+            self.context
+                .set_fill_style(&JsValue::from_str(locked_color));
         } else {
             self.context.set_fill_style(&JsValue::from_str(color));
         }
@@ -64,7 +69,8 @@ impl Canvas2DRenderer {
 
     fn set_stroke_color(&self, color: &str) {
         if let Some(locked_color) = &self.locked_stroke_color {
-            self.context.set_stroke_style(&JsValue::from_str(locked_color));
+            self.context
+                .set_stroke_style(&JsValue::from_str(locked_color));
         } else {
             self.context.set_stroke_style(&JsValue::from_str(color));
         }

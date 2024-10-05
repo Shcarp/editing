@@ -51,14 +51,19 @@ impl RenderControl {
             }
             UpdateMessage::Update(update_body) => {
                 // Insert the message into the buffer based on priority
-                let insert_position = self.buffer.iter().position(|m| {
-                    if let UpdateMessage::Update(existing_body) = m {
-                        existing_body.priority < update_body.priority
-                    } else {
-                        false
-                    }
-                }).unwrap_or(self.buffer.len());
-                self.buffer.insert(insert_position, UpdateMessage::Update(update_body));
+                let insert_position = self
+                    .buffer
+                    .iter()
+                    .position(|m| {
+                        if let UpdateMessage::Update(existing_body) = m {
+                            existing_body.priority < update_body.priority
+                        } else {
+                            false
+                        }
+                    })
+                    .unwrap_or(self.buffer.len());
+                self.buffer
+                    .insert(insert_position, UpdateMessage::Update(update_body));
                 self.flush_if_needed();
             }
         }

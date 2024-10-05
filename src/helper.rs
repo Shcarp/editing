@@ -258,4 +258,3 @@ pub mod easing {
         2.0_f64.powf(-10.0 * t) * (t - p / 4.0) * (2.0 * PI / p).sin() + 1.0
     }
 }
-

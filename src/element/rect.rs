@@ -11,6 +11,7 @@ use dirty_setter::DirtySetter;
 use nalgebra as na;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use web_sys::console;
 
 pub struct RectOptions {
     x: f64,
@@ -48,8 +49,7 @@ impl Default for RectOptions {
     }
 }
 
-#[derive(Debug, Clone, DirtySetter)]
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, DirtySetter, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct Rect {
     id: ObjectId,
@@ -80,7 +80,6 @@ pub struct Rect {
     pub skew_y: f64,
     #[dirty_setter]
     pub rotation: f64,
-
 }
 
 impl Rect {
@@ -145,7 +144,7 @@ struct RectUpdateBoadyData {
     width: Option<f64>,
     height: Option<f64>,
     fill: Option<String>,
-    stroke:  Option<String>,
+    stroke: Option<String>,
     stroke_width: Option<f64>,
     opacity: Option<f64>,
     scale_x: Option<f64>,
@@ -288,9 +287,7 @@ impl Transformable for Rect {
     }
 }
 
-
 impl Animatable for Rect {
-
     fn get_properties(&self, properties: &[String]) -> HashMap<String, AnimationValue> {
         let mut result = HashMap::new();
 
@@ -300,15 +297,32 @@ impl Animatable for Rect {
                 "y" => result.insert("y".to_string(), AnimationValue::Float(self.y)),
                 "width" => result.insert("width".to_string(), AnimationValue::Float(self.width)),
                 "height" => result.insert("height".to_string(), AnimationValue::Float(self.height)),
-                "fill" => result.insert("fill".to_string(), AnimationValue::String(self.fill.clone())),
-                "stroke" => result.insert("stroke".to_string(), AnimationValue::String(self.stroke.clone())),
-                "stroke_width" => result.insert("stroke_width".to_string(), AnimationValue::Float(self.stroke_width)),
-                "opacity" => result.insert("opacity".to_string(), AnimationValue::Float(self.opacity)),
-                "scale_x" => result.insert("scale_x".to_string(), AnimationValue::Float(self.scale_x)),
-                "scale_y" => result.insert("scale_y".to_string(), AnimationValue::Float(self.scale_y)),
+                "fill" => result.insert(
+                    "fill".to_string(),
+                    AnimationValue::String(self.fill.clone()),
+                ),
+                "stroke" => result.insert(
+                    "stroke".to_string(),
+                    AnimationValue::String(self.stroke.clone()),
+                ),
+                "stroke_width" => result.insert(
+                    "stroke_width".to_string(),
+                    AnimationValue::Float(self.stroke_width),
+                ),
+                "opacity" => {
+                    result.insert("opacity".to_string(), AnimationValue::Float(self.opacity))
+                }
+                "scale_x" => {
+                    result.insert("scale_x".to_string(), AnimationValue::Float(self.scale_x))
+                }
+                "scale_y" => {
+                    result.insert("scale_y".to_string(), AnimationValue::Float(self.scale_y))
+                }
                 "skew_x" => result.insert("skew_x".to_string(), AnimationValue::Float(self.skew_x)),
                 "skew_y" => result.insert("skew_y".to_string(), AnimationValue::Float(self.skew_y)),
-                "rotation" => result.insert("rotation".to_string(), AnimationValue::Float(self.rotation)),
+                "rotation" => {
+                    result.insert("rotation".to_string(), AnimationValue::Float(self.rotation))
+                }
                 _ => None,
             };
         }
@@ -316,7 +330,10 @@ impl Animatable for Rect {
         result
     }
 
-    fn set_properties(&mut self, properties: HashMap<String, AnimationValue>) -> Result<(), AnimationError> {
+    fn set_properties(
+        &mut self,
+        properties: HashMap<String, AnimationValue>,
+    ) -> Result<(), AnimationError> {
         let mut dirty_properties = DirtyUpdates::default();
         for (property, value) in properties {
             match (property.as_str(), value) {
@@ -326,7 +343,9 @@ impl Animatable for Rect {
                 ("height", AnimationValue::Float(v)) => dirty_properties.height = Some(v),
                 ("fill", AnimationValue::String(v)) => dirty_properties.fill = Some(v),
                 ("stroke", AnimationValue::String(v)) => dirty_properties.stroke = Some(v),
-                ("stroke_width", AnimationValue::Float(v)) => dirty_properties.stroke_width = Some(v),
+                ("stroke_width", AnimationValue::Float(v)) => {
+                    dirty_properties.stroke_width = Some(v)
+                }
                 ("opacity", AnimationValue::Float(v)) => dirty_properties.opacity = Some(v),
                 ("scale_x", AnimationValue::Float(v)) => dirty_properties.scale_x = Some(v),
                 ("scale_y", AnimationValue::Float(v)) => dirty_properties.scale_y = Some(v),
@@ -340,5 +359,8 @@ impl Animatable for Rect {
         self.set_multiple(dirty_properties);
         Ok(())
     }
-}
 
+    fn is_animatable(&self) -> bool {
+        true
+    }
+}

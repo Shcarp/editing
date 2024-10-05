@@ -4,9 +4,9 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::spawn_local;
+
 use web_sys::console;
 use web_sys::js_sys::Promise;
-use wasm_timer::Instant;
 
 use crate::animation::AnimationManager;
 use crate::element::Renderable;
@@ -14,6 +14,7 @@ use crate::events::{get_event_system, AppEvent};
 use crate::helper::request_animation_frame;
 use crate::object_manager::ObjectManager;
 use crate::render_control::get_render_control;
+use crate::render_control::UpdateMessage;
 use crate::scene_manager::SceneManager;
 use crate::scene_manager::SceneManagerOptions;
 
@@ -36,7 +37,7 @@ impl App {
         Self {
             object_manager: object_manager,
             scene_manager,
-            animation_manager: Rc::new(RefCell::new(AnimationManager::new()))
+            animation_manager: Rc::new(RefCell::new(AnimationManager::new())),
         }
     }
 
@@ -100,63 +101,72 @@ impl App {
 }
 
 impl App {
-    pub fn start_loop(&self) -> Result<(), JsValue> {
-        let scene_manager: Rc<RefCell<SceneManager>> = self.scene_manager.clone();
-        let object_manager: Rc<RefCell<ObjectManager>> = self.object_manager.clone();
+    pub async fn start_loop(&self) -> Result<(), JsValue> {
+        let scene_manager = self.scene_manager.clone();
+        let object_manager = self.object_manager.clone();
         let render_control = Rc::new(RefCell::new(get_render_control()));
+        let animation_manager = self.animation_manager.clone();
 
-        let render_control_clone = render_control.clone();
-        let scene_manager_clone = scene_manager.clone();
+        // 创建一个 Promise 来等待所有任务创建完成
+        let setup_promise = Promise::new(&mut |resolve, _| {
+            // 渲染任务
+            {
+                let render_control = render_control.clone();
+                let scene_manager = scene_manager.clone();
+                let object_manager = object_manager.clone();
+                
+                spawn_local(async move {
+                    loop {
+                        if let Some(messages) = render_control.borrow_mut().receive_messages().await {
+                            object_manager.borrow_mut().update_object_from_message(&messages);
+                            scene_manager.borrow().render();
+                        }
+                    }
+                })
+            };
 
-        let update_object_manager = object_manager.clone();
-        spawn_local(async move {
-            loop {
+            {
+                let object_manager = object_manager.clone();
+                let animation_manager = animation_manager.clone();
+                
+                spawn_local(async move {
+                    loop {
+                        let update = || {
+                            let objects = object_manager.borrow().get_animatables();
+                            let objects_map = objects
+                                .into_iter()
+                                .map(|object| (object.borrow().id().value().to_string(), object.clone()))
+                                .collect();
+                            let _ = animation_manager.borrow_mut().update(objects_map);
+                        };
 
-                let mut render_control = render_control_clone.borrow_mut();
-                if let Some(_messages) = render_control.receive_messages().await {
-                    update_object_manager.borrow_mut().update_object_from_message(&_messages);
-                    let scene_manager = scene_manager_clone.borrow_mut();
-                    scene_manager.render();
-                }
-            }
+                        let promise = Promise::new(&mut |resolve, _| {
+
+                            request_animation_frame(&resolve);
+                        });
+
+                        wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+
+                        update();
+                    }
+                })
+            };
+
+            let window = web_sys::window().expect("no global `window` exists");
+            let closure = Closure::once_into_js(move || {
+                resolve.call0(&JsValue::NULL).unwrap();
+            });
+            window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                closure.as_ref().unchecked_ref(),
+                10
+            ).expect("failed to set timeout");
         });
 
-        let scene_manager_clone = scene_manager.clone();
-        let object_manager_clone = object_manager.clone();
-        let animation_manager_clone = self.animation_manager.clone();
-        spawn_local(async move {
-            let mut loop_count = 0;
-            let mut total_update_time = std::time::Duration::new(0, 0);
-            let mut total_loop_time = std::time::Duration::new(0, 0);
-            loop {
-                let loop_start = Instant::now();
-                let _delta_time = scene_manager_clone.borrow_mut().update_time();
-                let update_start = Instant::now();
-                let objects = object_manager_clone.borrow().get_animatable_objects();
+        // 等待 setup_promise 完成
+        wasm_bindgen_futures::JsFuture::from(setup_promise).await?;
 
-                let _ = animation_manager_clone.borrow_mut().update(objects);
-
-                let update_duration = update_start.elapsed();
-                total_update_time += update_duration;
-
-                let promise = Promise::new(&mut |resolve, _| {
-                    request_animation_frame(&resolve);
-                });
-
-                let loop_duration = loop_start.elapsed();
-                total_loop_time += loop_duration;
-
-                wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
-                loop_count += 1;
-
-                if loop_count % 100 == 0 {
-                    console::log_1(&format!("Average times over {} loops:", loop_count).into());
-                    console::log_1(&format!("Update objects: {:?}", total_update_time / loop_count).into());
-                    console::log_1(&format!("Total loop: {:?}", total_loop_time / loop_count).into());
-                    console::log_1(&"------------------------".into());
-                }
-            }
-        });
+        get_render_control().add_message(UpdateMessage::ForceUpdate);
+        let _ = get_event_system().emit("start_loop", &JsValue::NULL);
 
         Ok(())
     }

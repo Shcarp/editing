@@ -10,8 +10,8 @@ use web_sys::CanvasRenderingContext2d;
 use std::any::{Any, TypeId};
 
 use crate::animation::{AnimationError, AnimationValue};
-use crate::{animation::Animatable, helper::generate_id};
 use crate::renderer::Renderer;
+use crate::{animation::Animatable, helper::generate_id};
 
 use serde::{Deserialize, Serialize};
 
@@ -196,15 +196,14 @@ pub trait Eventable {
     }
 }
 
-pub trait Renderable: Debug + Transformable + Dirty + Eventable + Any {
+pub trait Renderable: Debug + Transformable + Dirty + Eventable + Any + Animatable {
     fn id(&self) -> &ObjectId;
 
     fn update(&mut self, data: Value);
-    
+
     fn render(&self, renderer: &dyn Renderer);
     fn position(&self) -> (f64, f64);
 }
-
 
 // 容器 trait
 pub trait RenderContainer: Debug {
