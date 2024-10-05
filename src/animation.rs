@@ -1,107 +1,140 @@
-pub trait Animatable {
-    fn update(&mut self, delta_time: f64);
-    fn is_finished(&self) -> bool;
+use std::any::{Any, TypeId};
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+use std::rc::Rc;
+use wasm_timer::Instant;
+use std::borrow::Cow;
+use std::fmt::Debug;
+
+use crate::element::Renderable;
+
+#[derive(Debug, Clone)]
+pub enum AnimationValue {
+    Int(i32),
+    Float(f64),
+    String(String),
+    Color((u8, u8, u8, u8)),
+    Vector2D((f64, f64)),
+    Matrix([f64; 6]),
+}
+
+
+pub trait Animatable: Renderable {
+    fn get_properties(&self, properties: &[String]) -> HashMap<String, AnimationValue>;
+    fn set_properties(&mut self, properties: HashMap<String, AnimationValue>) -> Result<(), AnimationError>;
+}
+pub trait AnimatableExt {
+    fn into_renderable(self) -> Rc<RefCell<Box<dyn Renderable>>>;
+}
+
+impl AnimatableExt for Rc<RefCell<Box<dyn Animatable>>> {
+    fn into_renderable(self) -> Rc<RefCell<Box<dyn Renderable>>> {
+        // This is still unsafe, but now it's implemented as a trait method
+        unsafe { std::mem::transmute(self) }
+    }
+}
+
+#[derive(Debug)]
+pub enum AnimationError {
+    InvalidProperty(Cow<'static, str>),
+    UnsupportedPropertyType(Cow<'static, str>),
+}
+    
+pub trait Animation: Debug {
+    fn update(&mut self, delta: f64, current_values: &HashMap<String, AnimationValue>) -> AnimationStatus;
+    fn get_current_values(&self) -> HashMap<String, AnimationValue>;
+    fn get_properties(&self) -> &[String];
     fn reset(&mut self);
-    fn value(&self) -> f64;
+    fn set_duration(&mut self, duration: f64);
+    fn get_duration(&self) -> f64;
+    fn set_easing(&mut self, easing: Box<dyn Fn(f64) -> f64 + Send + Sync>);
 }
 
-#[derive(Clone, Debug)]
-pub struct Tween {
-    start_value: f64,
-    end_value: f64,
-    duration: f64,
-    elapsed_time: f64,
-    easing: fn(f64) -> f64,
+#[derive(Debug)]
+pub enum AnimationStatus {
+    InProgress,
+    Completed,
 }
 
-impl Tween {
-    pub fn new(start_value: f64, end_value: f64, duration: f64, easing: fn(f64) -> f64) -> Self {
+#[derive(Debug)]
+struct AnimationEntry {
+    animation: Box<dyn Animation>,
+    object_id: String,
+}
+
+#[derive(Debug)]
+pub struct AnimationManager {
+    animations: Vec<AnimationEntry>,
+    queued_animations: VecDeque<(String, Box<dyn Animation>)>,
+    last_update: Instant,
+}
+
+impl AnimationManager {
+    pub fn new() -> Self {
         Self {
-            start_value,
-            end_value,
-            duration,
-            elapsed_time: 0.0,
-            easing: easing,
+            animations: Vec::new(),
+            queued_animations: VecDeque::new(),
+            last_update: Instant::now(),
         }
     }
 
-    pub fn with_easing(mut self, easing: fn(f64) -> f64) -> Self {
-        self.easing = easing;
-        self
+    pub fn add_animation(&mut self, object_id: String, animation: Box<dyn Animation>) {
+        self.animations.push(AnimationEntry { animation, object_id });
     }
-}
 
-impl Animatable for Tween {
-    fn update(&mut self, delta_time: f64) {
-        self.elapsed_time += delta_time;
-        if self.elapsed_time > self.duration {
-            self.elapsed_time = self.duration;
+    pub fn queue_animation(&mut self, object_id: String, animation: Box<dyn Animation>) {
+        self.queued_animations.push_back((object_id, animation));
+    }
+
+    pub fn update(&mut self, objects: HashMap<String, Rc<RefCell<Box<dyn Animatable>>>>) -> Result<(), AnimationError> {
+        let now = Instant::now();
+        let delta = now.elapsed().as_secs_f64() - self.last_update.elapsed().as_secs_f64();
+        self.last_update = now;
+
+        let mut completed_indices = Vec::new();
+
+        for (index, entry) in self.animations.iter_mut().enumerate() {
+            if let Some(object) = objects.get(&entry.object_id) {
+                let properties = entry.animation.get_properties();
+                let current_values = object.borrow().get_properties(properties);
+
+                match entry.animation.update(delta, &current_values) {
+                    AnimationStatus::InProgress => {
+                        let new_values = entry.animation.get_current_values();
+                        object.borrow_mut().set_properties(new_values)?;
+                    },
+                    AnimationStatus::Completed => {
+                        completed_indices.push(index);
+                    },
+                }
+            } else {
+                completed_indices.push(index);
+            }
         }
-    }
 
-    fn is_finished(&self) -> bool {
-        self.elapsed_time >= self.duration
-    }
-
-    fn reset(&mut self) {
-        self.elapsed_time = 0.0;
-    }
-
-    fn value(&self) -> f64 {
-        let t = self.elapsed_time / self.duration;
-        let eased_t = (self.easing)(t);
-        self.start_value + (self.end_value - self.start_value) * eased_t
-    }
-}
-
-// 一些常用的缓动函数
-pub mod easing {
-    use std::f64::consts::PI;
-    pub fn linear(t: f64) -> f64 {
-        t
-    }
-    pub fn ease_in_quad(t: f64) -> f64 {
-        t * t
-    }
-    pub fn ease_out_quad(t: f64) -> f64 {
-        t * (2.0 - t)
-    }
-    pub fn ease_in_out_quad(t: f64) -> f64 {
-        if t < 0.5 {
-            2.0 * t * t
-        } else {
-            -1.0 + (4.0 - 2.0 * t) * t
+        // Remove completed animations in reverse order to maintain correct indices
+        for &index in completed_indices.iter().rev() {
+            self.animations.swap_remove(index);
         }
-    }
-    pub fn ease_in_cubic(t: f64) -> f64 {
-        t * t * t
-    }
-    pub fn ease_out_cubic(t: f64) -> f64 {
-        let t2 = t * t;
-        t2 * (3.0 - 2.0 * t)
+
+        // Add queued animations
+        while let Some((object_id, animation)) = self.queued_animations.pop_front() {
+            self.animations.push(AnimationEntry { animation, object_id });
+        }
+
+        Ok(())
     }
 
-    pub fn ease_in_out_cubic(t: f64) -> f64 {
-        if t < 0.5 {
-            4.0 * t * t * t
-        } else {
-            (t - 1.0) * (2.0 * t - 2.0) * (2.0 * t - 2.0) + 1.0
-        }
+    pub fn get_object_ids(&self) -> Vec<String> {
+        self.animations.iter().map(|entry| entry.object_id.clone()).collect()
     }
 
-    pub fn ease_in_elastic(t: f64) -> f64 {
-        if t == 0.0 || t == 1.0 {
-            return t;
-        }
-        let p = 0.3;
-        -(2.0_f64.powf(10.0 * (t - 1.0))) * ((t - 1.0 - p / 4.0) * (2.0 * PI) / p).sin()
+    pub fn get_active_animation_count(&self) -> usize {
+        self.animations.len()
     }
 
-    pub fn ease_out_elastic(t: f64) -> f64 {
-        if t == 0.0 || t == 1.0 {
-            return t;
-        }
-        let p = 0.3;
-        2.0_f64.powf(-10.0 * t) * (t - p / 4.0) * (2.0 * PI / p).sin() + 1.0
+    pub fn clear_all_animations(&mut self) {
+        self.animations.clear();
+        self.queued_animations.clear();
     }
 }

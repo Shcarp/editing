@@ -1,6 +1,6 @@
 mod rect;
 
-pub use rect::{AnimationParams, Rect, RectOptions};
+pub use rect::{Rect, RectOptions};
 
 use nalgebra as na;
 use serde_json::Value;
@@ -9,7 +9,8 @@ use web_sys::CanvasRenderingContext2d;
 
 use std::any::{Any, TypeId};
 
-use crate::helper::generate_id;
+use crate::animation::{AnimationError, AnimationValue};
+use crate::{animation::Animatable, helper::generate_id};
 use crate::renderer::Renderer;
 
 use serde::{Deserialize, Serialize};
@@ -195,18 +196,15 @@ pub trait Eventable {
     }
 }
 
-pub trait Renderable: Debug + Transformable + Dirty + Eventable {
+pub trait Renderable: Debug + Transformable + Dirty + Eventable + Any {
     fn id(&self) -> &ObjectId;
 
-    // 更新对象属性
     fn update(&mut self, data: Value);
     
     fn render(&self, renderer: &dyn Renderer);
     fn position(&self) -> (f64, f64);
-
-    // 每一帧更新
-    fn update_frame(&mut self, delta_time: f64);
 }
+
 
 // 容器 trait
 pub trait RenderContainer: Debug {
@@ -218,6 +216,8 @@ pub trait RenderContainer: Debug {
     fn get_mut(&mut self, id: &ObjectId) -> Option<&mut Self::Item>;
     fn render_all(&self, context: &CanvasRenderingContext2d);
     fn update_all(&mut self, delta_time: f32);
+
+    fn as_any(&self) -> &dyn Any;
 }
 
 pub trait Collidable {

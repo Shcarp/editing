@@ -8,6 +8,7 @@ use web_sys::console;
 use web_sys::js_sys::Promise;
 use wasm_timer::Instant;
 
+use crate::animation::AnimationManager;
 use crate::element::Renderable;
 use crate::events::{get_event_system, AppEvent};
 use crate::helper::request_animation_frame;
@@ -18,6 +19,7 @@ use crate::scene_manager::SceneManagerOptions;
 
 #[derive(Debug)]
 pub struct App {
+    pub animation_manager: Rc<RefCell<AnimationManager>>,
     pub object_manager: Rc<RefCell<ObjectManager>>,
     pub scene_manager: Rc<RefCell<SceneManager>>,
 }
@@ -34,6 +36,7 @@ impl App {
         Self {
             object_manager: object_manager,
             scene_manager,
+            animation_manager: Rc::new(RefCell::new(AnimationManager::new()))
         }
     }
 
@@ -107,60 +110,32 @@ impl App {
 
         let update_object_manager = object_manager.clone();
         spawn_local(async move {
-            let mut loop_count = 0;
-            let mut total_receive_time = std::time::Duration::new(0, 0);
-            let mut total_update_time = std::time::Duration::new(0, 0);
-            let mut total_render_time = std::time::Duration::new(0, 0);
-            let mut total_loop_time = std::time::Duration::new(0, 0);
-
             loop {
-                let loop_start = Instant::now();
 
                 let mut render_control = render_control_clone.borrow_mut();
-                let receive_start = Instant::now();
                 if let Some(_messages) = render_control.receive_messages().await {
-                    let receive_duration = receive_start.elapsed();
-                    total_receive_time += receive_duration;
-
-                    let update_start = Instant::now();
                     update_object_manager.borrow_mut().update_object_from_message(&_messages);
-                    let update_duration = update_start.elapsed();
-                    total_update_time += update_duration;
-
-                    let render_start = Instant::now();
                     let scene_manager = scene_manager_clone.borrow_mut();
                     scene_manager.render();
-                    let render_duration = render_start.elapsed();
-                    total_render_time += render_duration;
-                }
-
-                let loop_duration = loop_start.elapsed();
-                total_loop_time += loop_duration;
-
-                loop_count += 1;
-
-                if loop_count % 100 == 0 {
-                    console::log_1(&format!("Average times over {} loops:", loop_count).into());
-                    console::log_1(&format!("Receive messages: {:?}", total_receive_time / loop_count).into());
-                    console::log_1(&format!("Update objects: {:?}", total_update_time / loop_count).into());
-                    console::log_1(&format!("Render: {:?}", total_render_time / loop_count).into());
-                    console::log_1(&format!("Total loop: {:?}", total_loop_time / loop_count).into());
-                    console::log_1(&"------------------------".into());
                 }
             }
         });
 
         let scene_manager_clone = scene_manager.clone();
         let object_manager_clone = object_manager.clone();
+        let animation_manager_clone = self.animation_manager.clone();
         spawn_local(async move {
             let mut loop_count = 0;
             let mut total_update_time = std::time::Duration::new(0, 0);
             let mut total_loop_time = std::time::Duration::new(0, 0);
             loop {
                 let loop_start = Instant::now();
-                let delta_time = scene_manager_clone.borrow_mut().update_time();
+                let _delta_time = scene_manager_clone.borrow_mut().update_time();
                 let update_start = Instant::now();
-                object_manager_clone.borrow_mut().update_all(delta_time);
+                let objects = object_manager_clone.borrow().get_animatable_objects();
+
+                let _ = animation_manager_clone.borrow_mut().update(objects);
+
                 let update_duration = update_start.elapsed();
                 total_update_time += update_duration;
 

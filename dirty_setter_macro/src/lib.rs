@@ -54,6 +54,7 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
 
     let batch_setter_field_names = field_names.clone();
     let batch_setter_field_types = field_types.clone();
+    let batch_setter_field_names_1 = field_names.clone();
 
     let dirty_field_names = field_names.clone();
     
@@ -89,6 +90,7 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
         }
     };
 
+    
     let updates_struct = quote! {
         #[derive(Default, serde::Deserialize)]
         pub struct DirtyUpdates {

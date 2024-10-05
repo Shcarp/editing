@@ -1,6 +1,8 @@
+use std::{any::Any, collections::HashMap};
+
 use super::{Dirty, Eventable, ObjectId, Renderable, Transformable};
 use crate::{
-    animation::{Animatable, Tween},
+    animation::{Animatable, AnimationError, AnimationValue},
     helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix},
     render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType},
     renderer::Renderer,
@@ -8,7 +10,6 @@ use crate::{
 use dirty_setter::DirtySetter;
 use nalgebra as na;
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
 use serde_json::Value;
 
 pub struct RectOptions {
@@ -80,25 +81,6 @@ pub struct Rect {
     #[dirty_setter]
     pub rotation: f64,
 
-    #[serde(skip)]
-    pub x_animation: Option<Tween>,
-    #[serde(skip)]
-    pub y_animation: Option<Tween>,
-    #[serde(skip)]
-    pub rotation_animation: Option<Tween>,
-    #[serde(skip)]
-    pub width_animation: Option<Tween>,
-    #[serde(skip)]
-    pub height_animation: Option<Tween>,
-    #[serde(skip)]
-    animation_queue: VecDeque<AnimationStage>,
-}
-
-#[derive(Debug, Clone)]
-struct AnimationStage {
-    params: AnimationParams,
-    duration: f64,
-    easing: fn(f64) -> f64,
 }
 
 impl Rect {
@@ -119,53 +101,7 @@ impl Rect {
             skew_x: options.skew_x,
             skew_y: options.skew_y,
             rotation: options.rotation,
-            x_animation: None,
-            y_animation: None,
-            rotation_animation: None,
-            width_animation: None,
-            height_animation: None,
-            animation_queue: VecDeque::new(),
             dirty: true,
-        }
-    }
-
-    pub fn animate_to(&mut self, params: AnimationParams, duration: f64, easing: fn(f64) -> f64) {
-        let stage = AnimationStage {
-            params,
-            duration,
-            easing,
-        };
-        self.animation_queue.push_back(stage);
-
-        // If this is the only animation in the queue, start it immediately
-        if self.animation_queue.len() == 1 {
-            self.start_next_animation();
-        }
-    }
-
-    fn start_next_animation(&mut self) {
-        if let Some(stage) = self.animation_queue.front() {
-            let AnimationStage {
-                params,
-                duration,
-                easing,
-            } = stage;
-            if let Some(x) = params.x {
-                self.x_animation = Some(Tween::new(self.x, x, *duration, *easing));
-            }
-            if let Some(y) = params.y {
-                self.y_animation = Some(Tween::new(self.y, y, *duration, *easing));
-            }
-            if let Some(rotation) = params.rotation {
-                self.rotation_animation =
-                    Some(Tween::new(self.rotation, rotation, *duration, *easing));
-            }
-            if let Some(width) = params.width {
-                self.width_animation = Some(Tween::new(self.width, width, *duration, *easing));
-            }
-            if let Some(height) = params.height {
-                self.height_animation = Some(Tween::new(self.height, height, *duration, *easing));
-            }
         }
     }
 
@@ -226,10 +162,6 @@ impl Renderable for Rect {
 
     fn update(&mut self, data: Value) {
         self.update(data);
-    }
-    
-    fn update_frame(&mut self, delta_time: f64) {
-        self.update_animations(delta_time);
     }
 
     fn render(&self, renderer: &dyn Renderer) {
@@ -356,74 +288,57 @@ impl Transformable for Rect {
     }
 }
 
-impl Rect {
-    fn update_animations(&mut self, delta_time: f64) {
-        let mut updates = DirtyUpdates::default();
-        let mut all_finished = true;
 
-        for (animation, field) in [
-            (&mut self.x_animation, &mut updates.x),
-            (&mut self.y_animation, &mut updates.y),
-            (&mut self.width_animation, &mut updates.width),
-            (&mut self.height_animation, &mut updates.height),
-            (&mut self.rotation_animation, &mut updates.rotation),
-        ] {
-            if let Some(ref mut anim) = animation {
-                anim.update(delta_time);
-                *field = Some(anim.value());
-                if anim.is_finished() {
-                    *animation = None;
-                } else {
-                    all_finished = false;
-                }
+impl Animatable for Rect {
+
+    fn get_properties(&self, properties: &[String]) -> HashMap<String, AnimationValue> {
+        let mut result = HashMap::new();
+
+        for property in properties {
+            match property.as_str() {
+                "x" => result.insert("x".to_string(), AnimationValue::Float(self.x)),
+                "y" => result.insert("y".to_string(), AnimationValue::Float(self.y)),
+                "width" => result.insert("width".to_string(), AnimationValue::Float(self.width)),
+                "height" => result.insert("height".to_string(), AnimationValue::Float(self.height)),
+                "fill" => result.insert("fill".to_string(), AnimationValue::String(self.fill.clone())),
+                "stroke" => result.insert("stroke".to_string(), AnimationValue::String(self.stroke.clone())),
+                "stroke_width" => result.insert("stroke_width".to_string(), AnimationValue::Float(self.stroke_width)),
+                "opacity" => result.insert("opacity".to_string(), AnimationValue::Float(self.opacity)),
+                "scale_x" => result.insert("scale_x".to_string(), AnimationValue::Float(self.scale_x)),
+                "scale_y" => result.insert("scale_y".to_string(), AnimationValue::Float(self.scale_y)),
+                "skew_x" => result.insert("skew_x".to_string(), AnimationValue::Float(self.skew_x)),
+                "skew_y" => result.insert("skew_y".to_string(), AnimationValue::Float(self.skew_y)),
+                "rotation" => result.insert("rotation".to_string(), AnimationValue::Float(self.rotation)),
+                _ => None,
+            };
+        }
+
+        result
+    }
+
+    fn set_properties(&mut self, properties: HashMap<String, AnimationValue>) -> Result<(), AnimationError> {
+        let mut dirty_properties = DirtyUpdates::default();
+        for (property, value) in properties {
+            match (property.as_str(), value) {
+                ("x", AnimationValue::Float(v)) => dirty_properties.x = Some(v),
+                ("y", AnimationValue::Float(v)) => dirty_properties.y = Some(v),
+                ("width", AnimationValue::Float(v)) => dirty_properties.width = Some(v),
+                ("height", AnimationValue::Float(v)) => dirty_properties.height = Some(v),
+                ("fill", AnimationValue::String(v)) => dirty_properties.fill = Some(v),
+                ("stroke", AnimationValue::String(v)) => dirty_properties.stroke = Some(v),
+                ("stroke_width", AnimationValue::Float(v)) => dirty_properties.stroke_width = Some(v),
+                ("opacity", AnimationValue::Float(v)) => dirty_properties.opacity = Some(v),
+                ("scale_x", AnimationValue::Float(v)) => dirty_properties.scale_x = Some(v),
+                ("scale_y", AnimationValue::Float(v)) => dirty_properties.scale_y = Some(v),
+                ("skew_x", AnimationValue::Float(v)) => dirty_properties.skew_x = Some(v),
+                ("skew_y", AnimationValue::Float(v)) => dirty_properties.skew_y = Some(v),
+                ("rotation", AnimationValue::Float(v)) => dirty_properties.rotation = Some(v),
+                _ => return Err(AnimationError::InvalidProperty(property.into())),
             }
         }
 
-        self.set_multiple(updates);
-        
-        if all_finished {
-            self.animation_queue.pop_front();
-            self.start_next_animation();
-        }
+        self.set_multiple(dirty_properties);
+        Ok(())
     }
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct AnimationParams {
-    pub x: Option<f64>,
-    pub y: Option<f64>,
-    pub rotation: Option<f64>,
-    pub width: Option<f64>,
-    pub height: Option<f64>,
-}
-
-impl AnimationParams {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn x(mut self, x: f64) -> Self {
-        self.x = Some(x);
-        self
-    }
-
-    pub fn y(mut self, y: f64) -> Self {
-        self.y = Some(y);
-        self
-    }
-
-    pub fn rotation(mut self, rotation: f64) -> Self {
-        self.rotation = Some(rotation);
-        self
-    }
-
-    pub fn width(mut self, width: f64) -> Self {
-        self.width = Some(width);
-        self
-    }
-
-    pub fn height(mut self, height: f64) -> Self {
-        self.height = Some(height);
-        self
-    }
-}
