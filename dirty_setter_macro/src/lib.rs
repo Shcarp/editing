@@ -34,6 +34,7 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
 
             quote! {
                 pub fn #setter_name(&mut self, value: #field_type) -> &mut Self {
+                    self.#field_name = value.clone();
                     let value = serde_json::json!({
                         stringify!(#field_name): value
                     });
@@ -43,6 +44,7 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
                         UpdateType::ObjectUpdate(id),
                         value
                     )));
+
                     self.set_dirty();
                     self
                 }
@@ -54,7 +56,6 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
 
     let batch_setter_field_names = field_names.clone();
     let batch_setter_field_types = field_types.clone();
-    let batch_setter_field_names_1 = field_names.clone();
 
     let dirty_field_names = field_names.clone();
     
@@ -63,7 +64,9 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
             let mut update = serde_json::json!({});
             #(
                 if let Some(value) = updates.#field_names {
+                    self.#field_names = value.clone();
                     update[stringify!(#field_names)] = serde_json::json!(value);
+
                 }
             )*
 
@@ -73,6 +76,7 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
                     UpdateType::ObjectUpdate(id),
                     update
                 )));
+
                 self.set_dirty();
             }
             self
