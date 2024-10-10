@@ -1,32 +1,28 @@
-use std::{any::Any, collections::HashMap};
+use std::collections::HashMap;
 
 use super::{Dirty, Eventable, ObjectId, Renderable, Transformable};
 use crate::{
-    animation::{Animatable, AnimationError, AnimationValue},
-    helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix},
-    render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType},
-    renderer::Renderer,
+    animation::{Animatable, AnimationError, AnimationValue}, app::App, helper::{convert_1x6_to_3x3, convert_3x3_to_1x6, get_rotation_matrix}, render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType}, renderer::Renderer
 };
 use dirty_setter::DirtySetter;
 use nalgebra as na;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use web_sys::console;
 
 pub struct RectOptions {
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
-    fill: String,
-    stroke: String,
-    stroke_width: f64,
-    opacity: f64,
-    scale_x: f64,
-    scale_y: f64,
-    skew_x: f64,
-    skew_y: f64,
-    rotation: f64,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub fill: String,
+    pub stroke: String,
+    pub stroke_width: f64,
+    pub opacity: f64,
+    pub scale_x: f64,
+    pub scale_y: f64,
+    pub skew_x: f64,
+    pub skew_y: f64,
+    pub rotation: f64,
 }
 
 impl Default for RectOptions {
@@ -80,6 +76,9 @@ pub struct Rect {
     pub skew_y: f64,
     #[dirty_setter]
     pub rotation: f64,
+
+    #[serde(skip)]
+    app: Option<App>,
 }
 
 impl Rect {
@@ -101,6 +100,7 @@ impl Rect {
             skew_y: options.skew_y,
             rotation: options.rotation,
             dirty: true,
+            app: None,
         }
     }
 
@@ -169,6 +169,14 @@ impl Renderable for Rect {
 
     fn position(&self) -> (f64, f64) {
         (self.x, self.y)
+    }
+
+    fn attach(&mut self, app: &App) {
+        self.app = Some(app.clone());
+    }
+
+    fn detach(&mut self) {
+        self.app = None;
     }
 }
 

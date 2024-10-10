@@ -1,11 +1,7 @@
 use crate::{
-    element::{ObjectId, Renderable},
-    helper::{
+    app::App, element::{ObjectId, Renderable}, helper::{
         convert_1x6_to_3x3, convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr,
-    },
-    object_manager::ObjectManager,
-    render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType},
-    renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer},
+    }, object_manager::ObjectManager, render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType}, renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer}
 };
 use nalgebra as na;
 use serde_json::Value;
@@ -75,6 +71,8 @@ pub struct SceneManager {
 
     cached_transform: Cell<Option<na::Matrix1x6<f64>>>,
     transform_dirty: Cell<bool>,
+    
+    app: Option<App>,
 }
 
 impl Default for SceneManager {
@@ -161,10 +159,9 @@ impl SceneManager {
 
     pub fn set_transform_direct(&self) {
         self.transform_dirty.set(true);
-        get_render_control().add_message(UpdateMessage::Update(UpdateBody::new(
-            UpdateType::SceneUpdate,
-            Value::Null,
-        )));
+        if let Some(app) = &self.app {
+            app.request_render();
+        }
     }
 }
 
@@ -192,7 +189,17 @@ impl SceneManager {
 
             cached_transform: Cell::new(None),
             transform_dirty: Cell::new(true),
+
+            app: None,
         }
+    }
+
+    pub fn attach(&mut self, app: &App) {
+        self.app = Some(app.clone());
+    }
+
+    pub fn detach(&mut self) {
+        self.app = None;
     }
 }
 

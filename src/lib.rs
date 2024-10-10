@@ -11,9 +11,8 @@ mod render_control;
 mod renderer;
 mod scene_manager;
 
-use animation::{AnimationValue, QwenAnimationBuilder};
 use app::App;
-use element::{Rect, RectOptions, Renderable};
+use element::{Rect, RectOptions};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
@@ -24,27 +23,26 @@ pub async fn wasm_main() {
     let init_result = app.init();
     match init_result {
         Ok(_) => {
-            let _ = app.start_loop().await;
+            let center_x = 500.0;
+            let center_y = 500.0;
+            let radius = 400.0;
+            let total_rects = 100;
 
-            for i in 0..100 {
-                let rect = Rect::new(RectOptions::default());
+            for i in 0..total_rects {
+                let angle = (i as f64 / total_rects as f64) * 2.0 * std::f64::consts::PI;
+                let x = center_x + radius * angle.cos();
+                let y = center_y + radius * angle.sin();
 
-                let initial_animation = QwenAnimationBuilder::new(3.0)
-                    .add_property("x", AnimationValue::Float(0.0), AnimationValue::Float((i % 13 * 100) as f64))
-                    .add_property("y", AnimationValue::Float(0.0), AnimationValue::Float((i / 13 * 100) as f64))
-                    .add_property("height", AnimationValue::Float(80.0), AnimationValue::Float(80.0))
-                    .add_property("width", AnimationValue::Float(80.0), AnimationValue::Float(80.0))
-                    .add_property("rotation", AnimationValue::Float(0.0), AnimationValue::Float((i as f64) * 3.6))
-                    .set_easing(Box::new(helper::easing::ease_in_out_quad))
-                    .build();
-                
-                app.animation_manager.borrow_mut().add_animation(rect.id().value().to_string(), Box::new(initial_animation));
+                let rect = Rect::new(RectOptions {
+                    x,
+                    y,
+                    ..Default::default()
+                });
 
                 app.add(rect);
             }
 
             app.scene_manager.borrow_mut().set_zoom(0.8);
-
             app.scene_manager.borrow_mut().set_offset(100.0, 100.0);
         }
         Err(err) => console::log_1(&err),

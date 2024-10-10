@@ -10,6 +10,7 @@ use web_sys::CanvasRenderingContext2d;
 use std::any::{Any, TypeId};
 
 use crate::animation::{AnimationError, AnimationValue};
+use crate::app::App;
 use crate::renderer::Renderer;
 use crate::{animation::Animatable, helper::generate_id};
 
@@ -201,6 +202,9 @@ pub trait Renderable: Debug + Transformable + Dirty + Eventable + Any + Animatab
 
     fn update(&mut self, data: Value);
 
+    fn attach(&mut self, app: &App);
+    fn detach(&mut self);
+    
     fn render(&self, renderer: &dyn Renderer);
     fn position(&self) -> (f64, f64);
 }
