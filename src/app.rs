@@ -8,12 +8,14 @@ use web_sys::console;
 use crate::element::Renderable;
 use crate::events::{get_event_system, AppEvent};
 use crate::helper::request_animation_frame;
+use crate::history::History;
 use crate::object_manager::ObjectManager;
 use crate::scene_manager::SceneManager;
 use crate::scene_manager::SceneManagerOptions;
 
 #[derive(Debug, Clone)]
 pub struct App {
+    pub history: Rc<RefCell<History>>,
     pub object_manager: Rc<RefCell<ObjectManager>>,
     pub scene_manager: Rc<RefCell<SceneManager>>,
     render_requested: Rc<Cell<bool>>,
@@ -29,6 +31,7 @@ impl App {
         let scene_manager = Rc::new(RefCell::new(SceneManager::new(options)));
 
         Self {
+            history: Rc::new(RefCell::new(History::new())),
             object_manager: object_manager,
             scene_manager: scene_manager,
             render_requested: Rc::new(Cell::new(false)),
@@ -40,6 +43,7 @@ impl App {
         self.scene_manager.borrow_mut().set_context_type("2d")?;
 
         self.scene_manager.borrow_mut().attach(self);
+        self.history.borrow_mut().attach(&self);
 
         let _ = get_event_system().emit(AppEvent::READY.into(), &JsValue::NULL);
         Ok(())

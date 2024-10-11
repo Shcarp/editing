@@ -10,6 +10,7 @@ mod object_manager;
 mod render_control;
 mod renderer;
 mod scene_manager;
+mod history;
 
 use app::App;
 use element::{Rect, RectOptions};
