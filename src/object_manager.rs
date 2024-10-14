@@ -3,6 +3,7 @@ use crate::{
     render_control::{UpdateBody, UpdateMessage, UpdateType},
 };
 use glam::DVec2;
+use serde_json::Value;
 use std::{
     cell::RefCell,
     collections::{HashMap, VecDeque},
@@ -146,6 +147,13 @@ impl ObjectManager {
                 }
                 None => todo!(),
             }
+        }
+    }
+
+    pub fn update_object(&mut self, id: String, data: Value) {
+        if let Some(object_data) = self.objects.get_mut(&id) {
+            let mut object = object_data.object.borrow_mut();
+            object.update(data);
         }
     }
 }

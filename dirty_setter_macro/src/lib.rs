@@ -66,7 +66,6 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
                 if let Some(value) = updates.#field_names {
                     self.#field_names = value.clone();
                     update[stringify!(#field_names)] = serde_json::json!(value);
-
                 }
             )*
 

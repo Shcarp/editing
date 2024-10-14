@@ -1,7 +1,7 @@
 use crate::{
     app::App, element::{ObjectId, Renderable}, helper::{
         convert_1x6_to_3x3, convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr,
-    }, object_manager::ObjectManager, render_control::{get_render_control, UpdateBody, UpdateMessage, UpdateType}, renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer}
+    }, object_manager::ObjectManager, renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer}
 };
 use nalgebra as na;
 use serde_json::Value;
@@ -22,6 +22,17 @@ use web_sys::{
 pub enum CanvasContextType {
     Canvas2d,
     WebGl2,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SceneDirtyData {
+    pub zoom: f64,
+    pub offset_x: f64,
+    pub offset_y: f64,
+    pub rotation: f64,
+    pub height: u32,
+    pub width: u32,
+    pub dpr: f64,
 }
 
 pub struct SceneManagerOptions {
@@ -59,6 +70,7 @@ pub struct SceneManager {
     hit_canvas: Option<Rc<RefCell<OffscreenCanvas>>>,
     hit_renderer: Rc<RefCell<Option<Box<dyn Renderer>>>>,
     object_manager: Rc<RefCell<ObjectManager>>,
+
     last_update: Instant,
 
     zoom: f64,
@@ -163,6 +175,21 @@ impl SceneManager {
             app.request_render();
         }
     }
+
+    pub fn set_height(&mut self, height: u32) {
+        self.height = Some(height);
+        self.set_transform_direct();
+    }
+
+    pub fn set_width(&mut self, width: u32) {
+        self.width = Some(width);
+        self.set_transform_direct();
+    }
+
+    pub fn set_dpr(&mut self, dpr: f64) {
+        self.dpr = Some(dpr);
+        self.set_transform_direct();
+    }
 }
 
 impl SceneManager {
@@ -200,6 +227,26 @@ impl SceneManager {
 
     pub fn detach(&mut self) {
         self.app = None;
+    }
+
+    pub fn update_scene(&mut self, data: Value) {
+        let dirty_data: SceneDirtyData = serde_json::from_value(data).unwrap();
+
+        self.set_zoom(dirty_data.zoom);
+        self.set_offset(dirty_data.offset_x, dirty_data.offset_y);
+        self.set_rotation(dirty_data.rotation);
+        self.set_height(dirty_data.height);
+        self.set_width(dirty_data.width);
+        self.set_dpr(dirty_data.dpr);
+    }
+
+    pub fn reset_to_initial_state(&mut self) {
+        self.set_zoom(1.0);
+        self.set_offset(0.0, 0.0);
+        self.set_rotation(0.0);
+        self.set_height(self.height.unwrap());
+        self.set_width(self.width.unwrap());
+        self.set_dpr(self.dpr.unwrap());
     }
 }
 

@@ -84,6 +84,11 @@ impl App {
             _ => false,
         }
     }
+
+    pub fn reset_to_initial_state(&self) {
+        self.object_manager.borrow_mut().clear();
+        self.scene_manager.borrow_mut().reset_to_initial_state();
+    }
 }
 
 impl App {
