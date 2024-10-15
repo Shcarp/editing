@@ -1,9 +1,10 @@
 use crate::{
     app::App, element::{ObjectId, Renderable}, helper::{
         convert_1x6_to_3x3, convert_3x3_to_1x6, get_canvas, get_canvas_css_size, get_window_dpr,
-    }, object_manager::ObjectManager, renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer}
+    }, history::{HistoryItem, SceneHistoryItem}, object_manager::ObjectManager, renderer::{Canvas2DRenderer, OffscreenCanvas2DRenderer, Renderer}
 };
 use nalgebra as na;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{
     cell::{Cell, RefCell},
@@ -24,7 +25,7 @@ pub enum CanvasContextType {
     WebGl2,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneDirtyData {
     pub zoom: f64,
     pub offset_x: f64,
@@ -78,6 +79,9 @@ pub struct SceneManager {
     offset_y: f64,
     rotation: f64,
 
+    center_x: f64,
+    center_y: f64,
+
     event_handlers: Rc<RefCell<EventHandlers>>,
     event_listeners: Rc<RefCell<HashMap<String, Closure<dyn FnMut(MouseEvent)>>>>,
 
@@ -112,7 +116,7 @@ impl SceneManager {
         let translation_matrix = na::Matrix3::new(
             1.0,
             0.0,
-            self.offset_x,
+            self.offset_x ,
             0.0,
             1.0,
             self.offset_y,
@@ -131,64 +135,115 @@ impl SceneManager {
     }
 
     pub fn set_zoom(&mut self, zoom: f64) {
+        let old_data = self.get_dirty_data();
         self.zoom = zoom.max(0.1).min(10.0); // Limit zoom range
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
     pub fn set_offset(&mut self, x: f64, y: f64) {
+        let old_data = self.get_dirty_data();
         self.offset_x = x;
         self.offset_y = y;
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
     pub fn set_rotation(&mut self, rotation: f64) {
+        let old_data = self.get_dirty_data();
         self.rotation = rotation % (2.0 * std::f64::consts::PI);
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
     pub fn pan(&mut self, dx: f64, dy: f64) {
+        let old_data = self.get_dirty_data();
         self.offset_x += dx;
         self.offset_y += dy;
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
     pub fn zoom_at(&mut self, x: f64, y: f64, factor: f64) {
+        let old_data = self.get_dirty_data();
         let new_zoom = (self.zoom * factor).max(0.1).min(10.0);
         let zoom_change = new_zoom / self.zoom;
         self.offset_x = x - (x - self.offset_x) * zoom_change;
         self.offset_y = y - (y - self.offset_y) * zoom_change;
         self.zoom = new_zoom;
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
     pub fn reset_transform(&mut self) {
+        let old_data = self.get_dirty_data();
         self.zoom = 1.0;
         self.offset_x = 0.0;
         self.offset_y = 0.0;
         self.rotation = 0.0;
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn set_transform_direct(&self) {
+    pub fn set_transform_direct(&self, old_data: SceneDirtyData, new_data: SceneDirtyData) {
         self.transform_dirty.set(true);
         if let Some(app) = &self.app {
+            let item = SceneHistoryItem::new(
+                serde_json::to_value(old_data).unwrap(),
+                serde_json::to_value(new_data).unwrap(),
+            );
+            app.history.borrow_mut().push(HistoryItem::SceneUpdate(item));
             app.request_render();
         }
     }
 
     pub fn set_height(&mut self, height: u32) {
+        let old_data = self.get_dirty_data();
         self.height = Some(height);
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
     pub fn set_width(&mut self, width: u32) {
+        let old_data = self.get_dirty_data();
         self.width = Some(width);
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
     }
 
     pub fn set_dpr(&mut self, dpr: f64) {
+        let old_data = self.get_dirty_data();
         self.dpr = Some(dpr);
-        self.set_transform_direct();
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
+    }
+
+    pub fn update_rotation(&mut self, rotation_speed: f64) {
+        let old_data = self.get_dirty_data();
+        self.rotation += rotation_speed;
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
+    }
+
+    // 设置旋转中心
+    pub fn set_center(&mut self, x: f64, y: f64) {
+        let old_data = self.get_dirty_data();
+        self.center_x = x;
+        self.center_y = y;
+        let new_data = self.get_dirty_data();
+        self.set_transform_direct(old_data, new_data);
+    }
+
+    fn get_dirty_data(&self) -> SceneDirtyData {
+        SceneDirtyData {
+            zoom: self.zoom,
+            offset_x: self.offset_x,
+            offset_y: self.offset_y,
+            rotation: self.rotation,
+            height: self.height.unwrap(),
+            width: self.width.unwrap(),
+            dpr: self.dpr.unwrap(),
+        }
     }
 }
 
@@ -210,6 +265,9 @@ impl SceneManager {
             offset_x: 0.0,
             offset_y: 0.0,
             rotation: 0.0,
+
+            center_x: 0.0,
+            center_y: 0.0,
 
             event_handlers: Rc::new(RefCell::new(EventHandlers::default())),
             event_listeners: Rc::new(RefCell::new(HashMap::new())),
@@ -369,6 +427,11 @@ impl SceneManager {
             r.clear_all();
             r.save();
             r.set_line_width(1.0 / dpr);
+            
+            // Translate to the rotation center
+            r.translate(self.center_x, self.center_y);
+            
+            // Apply the transformation
             r.transform(
                 transform[0],
                 transform[1],
@@ -377,6 +440,9 @@ impl SceneManager {
                 transform[4],
                 transform[5],
             );
+            
+            // Translate back from the rotation center
+            r.translate(-self.center_x, -self.center_y);
         }
     }
 

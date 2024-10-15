@@ -39,8 +39,9 @@ impl ObjectManager {
         self.app = Some(app.clone());
     }
 
-    pub fn add(&mut self, object: Box<dyn Renderable>) {
+    pub fn add(&mut self, mut object: Box<dyn Renderable>) {
         if let Some(app) = &self.app {
+            object.attach(app);
             let id = object.id().value().to_string();
             let object_id = object.id().value().to_string();
             let object_type = object.get_type().to_string();

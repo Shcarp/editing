@@ -34,16 +34,22 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
 
             quote! {
                 pub fn #setter_name(&mut self, value: #field_type) -> &mut Self {
+                    let old_value = serde_json::json!({
+                        stringify!(#field_name): self.#field_name
+                    });
+
                     self.#field_name = value.clone();
+
                     let value = serde_json::json!({
                         stringify!(#field_name): value
                     });
 
                     let id = self.id().value().to_owned();
-                    get_render_control().add_message(UpdateMessage::Update(UpdateBody::new(
-                        UpdateType::ObjectUpdate(id),
-                        value
-                    )));
+
+                    if let Some(app) = &self.app {
+                        let item = ObjectHistoryItem::new(id, old_value, value);
+                        app.history.borrow_mut().push(HistoryItem::ObjectUpdate(item));
+                    }
 
                     self.set_dirty();
                     self
@@ -62,8 +68,10 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
     let batch_setter = quote! {
         pub fn set_multiple(&mut self, updates: DirtyUpdates) -> &mut Self {
             let mut update = serde_json::json!({});
+            let mut old_value = serde_json::json!({});
             #(
                 if let Some(value) = updates.#field_names {
+                    old_value[stringify!(#field_names)] = serde_json::json!(self.#field_names);
                     self.#field_names = value.clone();
                     update[stringify!(#field_names)] = serde_json::json!(value);
                 }
@@ -71,10 +79,11 @@ fn impl_dirty_macro(ast: &DeriveInput) -> TokenStream {
 
             if !update.as_object().unwrap().is_empty() {
                 let id = self.id().value().to_owned();
-                get_render_control().add_message(UpdateMessage::Update(UpdateBody::new(
-                    UpdateType::ObjectUpdate(id),
-                    update
-                )));
+               
+                if let Some(app) = &self.app {
+                    let item = ObjectHistoryItem::new(id, old_value, update);
+                    app.history.borrow_mut().push(HistoryItem::ObjectUpdate(item));
+                }
 
                 self.set_dirty();
             }

@@ -1,9 +1,10 @@
 use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use serde_json::Value;
-use wasm_bindgen::JsValue;
-use web_sys::console;
+use web_sys::{console, js_sys};
 use wasm_timer::Instant;
 use crate::{app::App, helper::create_element};
+use wasm_bindgen::prelude::*;
+use serde::{Serialize, Deserialize};
 
 #[derive(Clone, Debug)]
 pub struct ObjectHistoryItem {
@@ -18,7 +19,7 @@ impl ObjectHistoryItem {
         Self {
             undo_data,
             redo_data,
-            timestamp: Instant::now().elapsed().as_secs_f64(),
+            timestamp: js_sys::Date::now(),
             object_id,
         }
     }
@@ -36,7 +37,7 @@ impl SceneHistoryItem {
         Self {
             undo_data,
             redo_data,
-            timestamp: Instant::now().elapsed().as_secs_f64(),
+            timestamp: js_sys::Date::now(),
         }
     }
 }
@@ -55,11 +56,12 @@ impl ElementHistoryItem {
             element_id,
             element_type,
             element_data,
-            timestamp: Instant::now().elapsed().as_secs_f64(),
+            timestamp: js_sys::Date::now(),
         }
     }
 }
 
+#[derive(Debug)]
 pub enum HistoryItem {
     ObjectUpdate(ObjectHistoryItem),
     SceneUpdate(SceneHistoryItem),
@@ -121,9 +123,19 @@ impl History {
 }
 
 impl History {
-    pub fn get_history_summary(&self) -> Vec<(f64, String)> {
+    pub fn get_history_summary(&self) -> Result<JsValue, JsValue> {
         let mut summary = Vec::new();
         for unit in self.undo_stack.borrow().iter() {
+            let mut item_counts = std::collections::HashMap::new();
+            for item in &unit.items {
+                *item_counts.entry(match item {
+                    HistoryItem::ObjectUpdate(_) => "Object updates",
+                    HistoryItem::SceneUpdate(_) => "Scene updates",
+                    HistoryItem::AddElement(_) => "Added elements",
+                    HistoryItem::RemoveElement(_) => "Removed elements",
+                }).or_insert(0) += 1;
+            }
+
             let description = if unit.items.len() == 1 {
                 match &unit.items[0] {
                     HistoryItem::ObjectUpdate(item) => format!("Object update: {}", item.object_id),
@@ -132,13 +144,20 @@ impl History {
                     HistoryItem::RemoveElement(item) => format!("Remove element: {}", item.element_id),
                 }
             } else {
-                format!("Multiple updates: {} items", unit.items.len())
+                let details: Vec<String> = item_counts.iter()
+                    .map(|(k, v)| format!("{}: {}", k, v))
+                    .collect();
+                format!("Multiple updates: {}", details.join(", "))
             };
-            summary.push((unit.timestamp, description));
-        }
-        summary
-    }
 
+            summary.push(HistorySummaryItem {
+                timestamp: unit.timestamp,
+                description,
+                item_count: unit.items.len(),
+            });
+        }
+        serde_wasm_bindgen::to_value(&summary).map_err(|e| e.into())
+    }
 
     pub fn push(&mut self, item: HistoryItem) {
         if self.is_undoing || self.is_redoing {
@@ -154,7 +173,10 @@ impl History {
 
         if should_finalize {
             self.finalize_current_unit();
-            *self.current_unit.borrow_mut() = Some(HistoryUnit { items: vec![item], timestamp: now.elapsed().as_secs_f64(), });
+            *self.current_unit.borrow_mut() = Some(HistoryUnit { 
+                items: vec![item], 
+                timestamp: js_sys::Date::now(),
+            });
         } else {
             self.current_unit.borrow_mut().as_mut().unwrap().items.push(item);
         }
@@ -328,4 +350,11 @@ impl History {
         *self.current_unit.borrow_mut() = None;
         *self.last_push_time.borrow_mut() = Instant::now();
     }
+}
+
+#[derive(Serialize, Deserialize)]
+struct HistorySummaryItem {
+    timestamp: f64,
+    description: String,
+    item_count: usize,
 }

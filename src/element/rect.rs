@@ -8,6 +8,7 @@ use dirty_setter::DirtySetter;
 use nalgebra as na;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use crate::history::{ObjectHistoryItem, HistoryItem};
 
 pub struct RectOptions {
     pub x: f64,

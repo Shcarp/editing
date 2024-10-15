@@ -56,7 +56,6 @@ impl App {
 
         let closure = Closure::wrap(Box::new(move || {
             if render_requested.get() {
-                console::log_1(&"render".into());
                 scene_manager.borrow_mut().render();
                 render_requested.set(false);
             }
