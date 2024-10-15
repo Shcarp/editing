@@ -44,6 +44,7 @@ impl App {
 
         self.scene_manager.borrow_mut().attach(self);
         self.history.borrow_mut().attach(&self);
+        self.object_manager.borrow_mut().attach(self);
 
         let _ = get_event_system().emit(AppEvent::READY.into(), &JsValue::NULL);
         Ok(())
@@ -94,7 +95,7 @@ impl App {
 impl App {
     pub fn add(&self, mut object: impl Renderable + 'static) {
         object.attach(self);
-        self.object_manager.borrow_mut().add(object);
+        self.object_manager.borrow_mut().add(Box::new(object));
         self.request_render();
     }
 

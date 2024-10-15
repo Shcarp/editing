@@ -27,7 +27,7 @@ pub async fn wasm_main() {
             let center_x = 500.0;
             let center_y = 500.0;
             let radius = 400.0;
-            let total_rects = 100;
+            let total_rects = 10000;
 
             for i in 0..total_rects {
                 let angle = (i as f64 / total_rects as f64) * 2.0 * std::f64::consts::PI;
@@ -45,6 +45,11 @@ pub async fn wasm_main() {
 
             app.scene_manager.borrow_mut().set_zoom(0.8);
             app.scene_manager.borrow_mut().set_offset(100.0, 100.0);
+
+            app.history.borrow_mut().ensure_current_unit_finalized();
+            // get_history_summary
+            let summary = app.history.borrow().get_history_summary();
+            console::log_1(&JsValue::from_str(&serde_json::to_string(&summary).unwrap()));
         }
         Err(err) => console::log_1(&err),
     }

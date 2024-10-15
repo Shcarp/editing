@@ -7,7 +7,7 @@ use crate::{
 use dirty_setter::DirtySetter;
 use nalgebra as na;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 pub struct RectOptions {
     pub x: f64,
@@ -177,6 +177,14 @@ impl Renderable for Rect {
 
     fn detach(&mut self) {
         self.app = None;
+    }
+
+    fn get_type(&self) -> &str {
+        "rect"
+    }
+
+    fn to_value(&self) -> Value {
+        json!(self)
     }
 }
 

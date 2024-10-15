@@ -1,6 +1,5 @@
 use crate::{
-    element::Renderable,
-    render_control::{UpdateBody, UpdateMessage, UpdateType},
+    app::App, element::Renderable, history::{ElementHistoryItem, HistoryItem}, render_control::{UpdateBody, UpdateMessage, UpdateType}
 };
 use glam::DVec2;
 use serde_json::Value;
@@ -17,14 +16,10 @@ struct ObjectData {
     position: DVec2,
 }
 
-#[derive(Debug)]
-struct AnimationObjectData {
-    object: Rc<RefCell<Box<dyn Renderable>>>,
-    last_update: f64,
-}
 
 #[derive(Debug)]
 pub struct ObjectManager {
+    app: Option<App>,
     objects: HashMap<String, ObjectData>,
     update_queue: VecDeque<String>,
     total_time: f64,
@@ -36,29 +31,51 @@ impl ObjectManager {
             objects: HashMap::new(),
             update_queue: VecDeque::new(),
             total_time: 0.0,
+            app: None,
         }
     }
 
-    pub fn add<T>(&mut self, object: T)
-    where
-        T: Renderable + 'static,
-    {
-        let id = object.id().value().to_string();
-        let position = DVec2::new(object.position().0, object.position().1);
-        let object_data = ObjectData {
-            object: Rc::new(RefCell::new(Box::new(object))),
-            last_update: self.total_time,
-            position,
-        };
+    pub fn attach(&mut self, app: &App) {
+        self.app = Some(app.clone());
+    }
 
-        self.objects.insert(id.clone(), object_data);
-        self.update_queue.push_back(id);
+    pub fn add(&mut self, object: Box<dyn Renderable>) {
+        if let Some(app) = &self.app {
+            let id = object.id().value().to_string();
+            let object_id = object.id().value().to_string();
+            let object_type = object.get_type().to_string();
+            let object_value = object.to_value();
+            let position = DVec2::new(object.position().0, object.position().1);
+            let object_data = ObjectData {
+                object: Rc::new(RefCell::new(object)),
+                last_update: self.total_time,
+                position,
+            };
+    
+            self.objects.insert(id.clone(), object_data);
+            self.update_queue.push_back(id);
+            let item = ElementHistoryItem::new(object_id, object_type, object_value);
+            app.history.borrow_mut().push(HistoryItem::AddElement(item));
+        }
+
     }
 
     pub fn remove(&mut self, id: &str) -> Option<Rc<RefCell<Box<dyn Renderable>>>> {
-        if let Some(object_data) = self.objects.remove(id) {
-            self.update_queue.retain(|queue_id| queue_id != id);
-            Some(object_data.object)
+        if let Some(app) = &self.app {
+            if let Some(object_data) = self.objects.remove(id) {
+                self.update_queue.retain(|queue_id| queue_id != id);
+    
+                let object = object_data.object;
+                let object_id = object.borrow().id().value().to_string();
+                let object_type = object.borrow().get_type().to_string();
+                let object_value = object.borrow().to_value();
+                let item = ElementHistoryItem::new(object_id, object_type, object_value);
+                app.history.borrow_mut().push(HistoryItem::RemoveElement(item));
+    
+                Some(object)
+            } else {
+                None
+            }
         } else {
             None
         }

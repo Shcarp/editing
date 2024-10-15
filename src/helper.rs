@@ -1,10 +1,14 @@
 use nalgebra as na;
 use rand::Rng;
+use serde_json::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
 use web_sys::js_sys::{Date, Function};
 use web_sys::{console, window, Document, HtmlCanvasElement, SvgMatrix, SvgsvgElement};
+
+use crate::element::Rect;
+use crate::element::Renderable;
 
 pub fn create_svg_matrix() -> Result<SvgMatrix, String> {
     let document = web_sys::window()
@@ -257,4 +261,21 @@ pub mod easing {
         let p = 0.3;
         2.0_f64.powf(-10.0 * t) * (t - p / 4.0) * (2.0 * PI / p).sin() + 1.0
     }
+}
+
+
+pub fn create_element(element_type: &str, data: &Value) -> Result<Box<dyn Renderable>, JsValue> {
+    let element = match element_type {
+        "rect" => {
+            // 反序列化 data
+            let rect = serde_json::from_value::<Rect>(data.clone());
+            match rect {
+                Ok(rect) => Box::new(rect),
+                Err(e) => return Err(JsValue::from_str(&format!("Failed to create rect: {}", e))),
+            }
+        },
+        _ => return Err(JsValue::from_str(&format!("Unsupported element type: {}", element_type))),
+    };
+
+    Ok(element)
 }

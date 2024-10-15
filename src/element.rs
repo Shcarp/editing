@@ -207,6 +207,10 @@ pub trait Renderable: Debug + Transformable + Dirty + Eventable + Any + Animatab
     
     fn render(&self, renderer: &dyn Renderer);
     fn position(&self) -> (f64, f64);
+    
+    fn get_type(&self) -> &str;
+
+    fn to_value(&self) -> Value;
 }
 
 // 容器 trait

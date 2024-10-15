@@ -1,6 +1,9 @@
-use std::{cell::RefCell, fmt::Debug, rc::Rc, time::Instant};
+use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use serde_json::Value;
-use crate::app::App;
+use wasm_bindgen::JsValue;
+use web_sys::console;
+use wasm_timer::Instant;
+use crate::{app::App, helper::create_element};
 
 #[derive(Clone, Debug)]
 pub struct ObjectHistoryItem {
@@ -38,9 +41,30 @@ impl SceneHistoryItem {
     }
 }
 
-enum HistoryItem {
+#[derive(Clone, Debug)]
+pub struct ElementHistoryItem {
+    pub element_id: String,
+    pub element_type: String,
+    pub element_data: Value,
+    pub timestamp: f64,
+}
+
+impl ElementHistoryItem {
+    pub fn new(element_id: String, element_type: String, element_data: Value) -> Self {
+        Self {
+            element_id,
+            element_type,
+            element_data,
+            timestamp: Instant::now().elapsed().as_secs_f64(),
+        }
+    }
+}
+
+pub enum HistoryItem {
     ObjectUpdate(ObjectHistoryItem),
     SceneUpdate(SceneHistoryItem),
+    AddElement(ElementHistoryItem),
+    RemoveElement(ElementHistoryItem),
 }
 
 pub struct HistoryUnit {
@@ -55,6 +79,9 @@ pub struct History {
     redo_stack: Rc<RefCell<Vec<HistoryUnit>>>,
     current_unit: Rc<RefCell<Option<HistoryUnit>>>,
     last_push_time: Rc<RefCell<Instant>>,
+
+    is_undoing: bool,
+    is_redoing: bool,
 }
 
 impl Debug for History {
@@ -82,6 +109,9 @@ impl History {
             app: None,
             current_unit: Rc::new(RefCell::new(None)),
             last_push_time: Rc::new(RefCell::new(Instant::now())),
+
+            is_undoing: false,
+            is_redoing: false,
         }
     }
 
@@ -97,7 +127,9 @@ impl History {
             let description = if unit.items.len() == 1 {
                 match &unit.items[0] {
                     HistoryItem::ObjectUpdate(item) => format!("Object update: {}", item.object_id),
-                    HistoryItem::SceneUpdate(item) => "Scene update".to_string(),
+                    HistoryItem::SceneUpdate(_) => "Scene update".to_string(),
+                    HistoryItem::AddElement(item) => format!("Add element: {}", item.element_id),
+                    HistoryItem::RemoveElement(item) => format!("Remove element: {}", item.element_id),
                 }
             } else {
                 format!("Multiple updates: {} items", unit.items.len())
@@ -108,7 +140,11 @@ impl History {
     }
 
 
-    fn push(&mut self, item: HistoryItem) {
+    pub fn push(&mut self, item: HistoryItem) {
+        if self.is_undoing || self.is_redoing {
+            return;
+        }
+
         let now = Instant::now();
         let should_finalize = {
             let current_unit = self.current_unit.borrow();
@@ -140,6 +176,7 @@ impl History {
     pub fn ensure_current_unit_finalized(&mut self) {
         self.finalize_current_unit();
     }
+
     fn apply_history_unit(&self, app: &App, unit: &HistoryUnit, is_undo: bool) {
         let items_iter: Box<dyn Iterator<Item = &HistoryItem>> = if is_undo {
             Box::new(unit.items.iter().rev())
@@ -157,11 +194,42 @@ impl History {
                     let data = if is_undo { &item.undo_data } else { &item.redo_data };
                     app.scene_manager.borrow_mut().update_scene(data.clone());
                 }
+                HistoryItem::AddElement(item) => {
+                    if is_undo {
+                        app.object_manager.borrow_mut().remove(&item.element_id);
+                    } else {
+                        let data = item.element_data.clone();
+                        let element_type = item.element_type.clone();
+
+                        match create_element(&element_type, &data) {
+                            Ok(element) => {
+                                app.object_manager.borrow_mut().add(element);
+                            },
+                            Err(e) => console::error_1(&format!("Failed to create element: {:?}", e).into()),
+                        }
+                    }
+                }
+                HistoryItem::RemoveElement(item) => {
+                    if is_undo {
+                        let data = item.element_data.clone();
+                        let element_type = item.element_type.clone();
+
+                        match create_element(&element_type, &data) {
+                            Ok(element) => {
+                                app.object_manager.borrow_mut().add(element);
+                            },
+                            Err(e) => console::error_1(&format!("Failed to create element: {:?}", e).into()),
+                        }
+                    } else {
+                        app.object_manager.borrow_mut().remove(&item.element_id);
+                    }
+                }
             }
         }
     }
 
     pub fn undo(&mut self) -> bool {
+        self.is_undoing = true;
         self.ensure_current_unit_finalized();
         if let Some(app) = &self.app {
             let mut undo_stack = self.undo_stack.borrow_mut();
@@ -174,10 +242,12 @@ impl History {
                 return true;
             }
         }
+        self.is_undoing = false;
         false
     }
 
     pub fn redo(&mut self) -> bool {
+        self.is_redoing = true;
         self.ensure_current_unit_finalized();
         if let Some(app) = &self.app {
             let mut undo_stack = self.undo_stack.borrow_mut();
@@ -190,10 +260,12 @@ impl History {
                 return true;
             }
         }
+        self.is_redoing = false;
         false
     }
 
     pub fn undo_to_time(&mut self, target_time: f64) -> bool {
+        self.is_undoing = true;
         self.ensure_current_unit_finalized();
         if let Some(app) = &self.app {
             let mut undo_stack = self.undo_stack.borrow_mut();
@@ -209,10 +281,12 @@ impl History {
             app.request_render();
             return true;
         }
+        self.is_undoing = false;
         false
     }
 
     pub fn redo_to_time(&mut self, target_time: f64) -> bool {
+        self.is_redoing = true;
         if let Some(app) = &self.app {
             let mut undo_stack = self.undo_stack.borrow_mut();
             let mut redo_stack = self.redo_stack.borrow_mut();
@@ -229,6 +303,7 @@ impl History {
             app.request_render();
             return true;
         }
+        self.is_redoing = false;
         false
     }
 
