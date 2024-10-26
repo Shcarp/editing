@@ -1,4 +1,5 @@
 use nalgebra as na;
+use pathfinder_canvas::Transform2F;
 use rand::Rng;
 use serde_json::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -159,8 +160,6 @@ pub fn get_canvas_css_size(canvas: &HtmlCanvasElement) -> Result<(u32, u32), JsV
     let width = computed_style.get_property_value("width")?;
     let height = computed_style.get_property_value("height")?;
 
-    console::log_1(&JsValue::from_str(&format!("计算后的宽度: '{}'", width)));
-    console::log_1(&JsValue::from_str(&format!("计算后的高度: '{}'", height)));
 
     let parse_px = |s: &str| -> f64 {
         s.trim_end_matches("px").parse().unwrap_or_else(|_| {
@@ -278,4 +277,12 @@ pub fn create_element(element_type: &str, data: &Value) -> Result<Box<dyn Render
     };
 
     Ok(element)
+}
+
+pub fn matrix1x6_to_transform2f(matrix: &na::Matrix1x6<f64>) -> Transform2F {
+    if let [a, b, c, d, e, f] = matrix.as_slice() {
+        Transform2F::row_major(*a as f32, *b as f32, *c as f32, *d as f32, *e as f32, *f as f32)
+    } else {
+        Transform2F::default()
+    }
 }

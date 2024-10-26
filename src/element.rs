@@ -1,18 +1,16 @@
 mod rect;
+mod image;
 
+use pathfinder_canvas::CanvasRenderingContext2D;
 pub use rect::{Rect, RectOptions};
 
-use nalgebra as na;
 use serde_json::Value;
 use std::fmt::Debug;
 use web_sys::CanvasRenderingContext2d;
 
 use std::any::{Any, TypeId};
-
-use crate::animation::{AnimationError, AnimationValue};
 use crate::app::App;
-use crate::renderer::Renderer;
-use crate::{animation::Animatable, helper::generate_id};
+use crate::helper::generate_id;
 
 use serde::{Deserialize, Serialize};
 
@@ -81,25 +79,6 @@ impl ObjectId {
     }
 }
 
-pub trait Transformable {
-    fn get_transform(&self) -> na::Matrix1x6<f64>;
-    fn calc_transform(&self) -> na::Matrix1x6<f64>;
-
-    fn get_center(&self) -> (f64, f64);
-
-    fn set_rotation(&mut self, angle_degrees: f64);
-    fn set_position(&mut self, x: f64, y: f64);
-    fn set_scale(&mut self, sx: f64, sy: f64);
-    fn set_skew(&mut self, skew_x: f64, skew_y: f64);
-    fn apply_transform(&mut self, transform: na::Matrix1x6<f64>);
-    fn get_rotation(&self) -> f64;
-    fn get_position(&self) -> (f64, f64);
-    fn get_scale(&self) -> (f64, f64);
-
-    fn reset_transform(&mut self) {
-        self.apply_transform(na::Matrix1x6::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0));
-    }
-}
 
 pub trait Dirty {
     fn set_dirty(&mut self);
@@ -197,7 +176,7 @@ pub trait Eventable {
     }
 }
 
-pub trait Renderable: Debug + Transformable + Dirty + Eventable + Any + Animatable {
+pub trait Renderable: Debug + Dirty + Eventable + Any  {
     fn id(&self) -> &ObjectId;
 
     fn update(&mut self, data: Value);
@@ -205,7 +184,7 @@ pub trait Renderable: Debug + Transformable + Dirty + Eventable + Any + Animatab
     fn attach(&mut self, app: &App);
     fn detach(&mut self);
     
-    fn render(&self, renderer: &dyn Renderer);
+    fn render(&self, ctx: &mut CanvasRenderingContext2D);
     fn position(&self) -> (f64, f64);
     
     fn get_type(&self) -> &str;
@@ -233,10 +212,6 @@ pub trait Collidable {
 
 pub fn is_renderable<T: 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<dyn Renderable>()
-}
-
-pub fn is_transformable<T: 'static>() -> bool {
-    TypeId::of::<T>() == TypeId::of::<dyn Transformable>()
 }
 
 pub fn is_render_container<T: 'static>() -> bool {

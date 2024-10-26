@@ -11,7 +11,7 @@ test:
     wasm-pack test --headless --chrome
 
 watch:
-    cargo watch -s "wasm-pack build --target web --debug"
+    cargo watch -s "wasm-pack build --target web"
 
 run: build serve
 

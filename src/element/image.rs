@@ -1,6 +1,7 @@
 use super::{Dirty, Eventable, ObjectId, Renderable};
 use crate::history::{HistoryItem, ObjectHistoryItem};
 use crate::app::App;
+use crate::source_manager::SourceKey;
 use css_color_parser::Color as CssColor;
 use dirty_setter::DirtySetter;
 use pathfinder_canvas::{vec2f, CanvasRenderingContext2D, RectF, Transform2F, Vector2F};
@@ -8,7 +9,7 @@ use pathfinder_color::ColorU;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-pub struct RectOptions {
+pub struct ImageOptions {
     pub x: f64,
     pub y: f64,
     pub width: f64,
@@ -22,9 +23,10 @@ pub struct RectOptions {
     pub skew_x: f64,
     pub skew_y: f64,
     pub rotation: f64,
+    pub source: SourceKey,
 }
 
-impl Default for RectOptions {
+impl Default for ImageOptions {
     fn default() -> Self {
         Self {
             x: 0.0,
@@ -40,13 +42,14 @@ impl Default for RectOptions {
             skew_x: 0.0,
             skew_y: 0.0,
             rotation: 0.0,
+            source: SourceKey::Url("".to_string()),
         }
     }
 }
 
 #[derive(Debug, Clone, DirtySetter, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub struct Rect {
+pub struct ImageElement {
     id: ObjectId,
     dirty: bool,
     #[dirty_setter]
@@ -76,17 +79,20 @@ pub struct Rect {
     #[dirty_setter]
     pub rotation: f64,
 
+    #[dirty_setter]
+    pub source: SourceKey,
+
     #[serde(skip)]
     app: Option<App>,
     #[serde(skip)]
     cached_transform: Option<Transform2F>,
 }
 
-impl Rect {
-    pub fn new(options: RectOptions) -> Self {
+impl ImageElement {
+    pub fn new(options: ImageOptions) -> Self {
         let id = ObjectId::new();
 
-        let mut rect = Rect {
+        let mut image = ImageElement {
             id,
             x: options.x,
             y: options.y,
@@ -104,27 +110,32 @@ impl Rect {
             dirty: true,
             app: None,
             cached_transform: None,
+            source: options.source,
         };
 
-        rect.calc_transform();
+        image.calc_transform();
 
-        rect
+        image
     }
 
     pub fn render_fn(&self, ctx: &mut CanvasRenderingContext2D, fill: &str, stroke: &str) {
         let current_transform = ctx.transform();
         let transform = current_transform * self.get_transform();
-
         ctx.set_transform(&transform);
         ctx.set_global_alpha(self.opacity as f32);
 
-        let rect = RectF::new(Vector2F::new(0.0, 0.0), Vector2F::new(self.width as f32, self.height as f32));
-        
-        let color = fill.parse::<CssColor>().unwrap();
-        let color_u = ColorU::new(color.r as u8, color.g as u8, color.b as u8, (color.a * 255.0) as u8);
+        if let Some(app) = self.app.as_ref() {
+                match app.source_manager.borrow().load_source(&self.source) {
+                Ok(pattern) => {
+                    let data = pattern.borrow().clone();
+                    ctx.draw_image(data, Vector2F::zero());
+                },
+                Err(e) => {
+                    return;
+                }
+            };
+        }
 
-        ctx.set_fill_style(color_u);
-        ctx.fill_rect(rect);
 
         if self.stroke_width > 0.0 {
             ctx.set_line_width(self.stroke_width as f32);
@@ -142,9 +153,10 @@ impl Rect {
             ctx.stroke_rect(rect);
         }
     }
+
 }
 
-impl Dirty for Rect {
+impl Dirty for ImageElement {
     fn set_dirty(&mut self) {
         self.set_dirty_flag(true);
         self.calc_transform();
@@ -159,7 +171,7 @@ impl Dirty for Rect {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-struct RectUpdateBoadyData {
+struct ImageUpdateBoadyData {
     x: Option<f64>,
     y: Option<f64>,
     width: Option<f64>,
@@ -175,7 +187,7 @@ struct RectUpdateBoadyData {
     rotation: Option<f64>,
 }
 
-impl Renderable for Rect {
+impl Renderable for ImageElement {
     fn id(&self) -> &ObjectId {
         return &self.id;
     }
@@ -201,7 +213,7 @@ impl Renderable for Rect {
     }
 
     fn get_type(&self) -> &str {
-        "rect"
+        "image"
     }
 
     fn to_value(&self) -> Value {
@@ -209,9 +221,9 @@ impl Renderable for Rect {
     }
 }
 
-impl Eventable for Rect {}
+impl Eventable for ImageElement {}
 
-impl  Rect {
+impl  ImageElement {
     fn get_transform(&self) -> Transform2F {
         self.cached_transform.clone().unwrap_or(Transform2F::default())
     }

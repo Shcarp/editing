@@ -124,60 +124,60 @@ impl AnimationManager {
         self.queued_animations.push_back((object_id, animation));
     }
 
-    pub fn update(
-        &mut self,
-        objects: HashMap<String, Rc<RefCell<Box<dyn Renderable>>>>,
-    ) -> Result<(), AnimationError> {
-        // console::log_1(&"update".into());
-        // 如果没有初始化，则进行初始化
-        if !self.init {
-            console::log_1(&"init".into());
-            self.init = true;
-            self.sender();
-            return Ok(());
-        }
+    // pub fn update(
+    //     &mut self,
+    //     objects: HashMap<String, Rc<RefCell<Box<dyn Renderable>>>>,
+    // ) -> Result<(), AnimationError> {
+    //     // console::log_1(&"update".into());
+    //     // 如果没有初始化，则进行初始化
+    //     if !self.init {
+    //         console::log_1(&"init".into());
+    //         self.init = true;
+    //         self.sender();
+    //         return Ok(());
+    //     }
 
-        let now = Instant::now();
-        let delta = now.duration_since(self.last_update).as_secs_f64();
-        self.last_update = now;
+    //     let now = Instant::now();
+    //     let delta = now.duration_since(self.last_update).as_secs_f64();
+    //     self.last_update = now;
 
-        let mut completed_indices = Vec::new();
+    //     let mut completed_indices = Vec::new();
 
-        for (index, entry) in self.animations.iter_mut().enumerate() {
-            if let Some(object) = objects.get(&entry.object_id) {
-                let properties = entry.animation.get_properties();
-                let current_values = object.borrow().get_properties(&properties);
+    //     for (index, entry) in self.animations.iter_mut().enumerate() {
+    //         if let Some(object) = objects.get(&entry.object_id) {
+    //             let properties = entry.animation.get_properties();
+    //             let current_values = object.borrow().get_properties(&properties);
 
-                match entry.animation.update(delta, &current_values) {
-                    AnimationStatus::InProgress(progress) => {
-                        let new_values = entry.animation.get_progress_values();
-                        object.borrow_mut().set_properties(new_values)?;
-                    }
-                    AnimationStatus::Completed => {
-                        completed_indices.push(index);
-                    }
-                }
-            } else {
-                completed_indices.push(index);
-            }
-        }
-        for &index in completed_indices.iter().rev() {
-            self.animations.swap_remove(index);
-            self.sender();
-        }
+    //             match entry.animation.update(delta, &current_values) {
+    //                 AnimationStatus::InProgress(progress) => {
+    //                     let new_values = entry.animation.get_progress_values();
+    //                     object.borrow_mut().set_properties(new_values)?;
+    //                 }
+    //                 AnimationStatus::Completed => {
+    //                     completed_indices.push(index);
+    //                 }
+    //             }
+    //         } else {
+    //             completed_indices.push(index);
+    //         }
+    //     }
+    //     for &index in completed_indices.iter().rev() {
+    //         self.animations.swap_remove(index);
+    //         self.sender();
+    //     }
 
-        while let Some((object_id, animation)) = self.queued_animations.pop_front() {
-            self.animations.push(AnimationEntry {
-                animation,
-                object_id,
-            });
-            self.sender();
-        }
+    //     while let Some((object_id, animation)) = self.queued_animations.pop_front() {
+    //         self.animations.push(AnimationEntry {
+    //             animation,
+    //             object_id,
+    //         });
+    //         self.sender();
+    //     }
         
-        self.sender();
+    //     self.sender();
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn get_active_animation_count(&self) -> usize {
         self.animations.len()

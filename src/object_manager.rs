@@ -118,20 +118,6 @@ impl ObjectManager {
             .collect()
     }
 
-    pub fn get_animatables(&self) -> Vec<Rc<RefCell<Box<dyn Renderable>>>> {
-        self.objects
-            .values()
-            .filter_map(|data| {
-                let object = data.object.clone();
-                if object.borrow().is_animatable() {
-                    Some(object)
-                } else {
-                    None
-                }
-            })
-            .collect()
-    }
-
     pub fn update_object_from_message(&mut self, messages: &Vec<UpdateMessage>) {
         let mut update_objects: HashMap<String, Vec<UpdateBody>> = HashMap::new();
         for message in messages.iter() {
