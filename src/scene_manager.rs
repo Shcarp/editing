@@ -11,6 +11,7 @@ use crate::{
 use pathfinder_canvas::{vec2f, CanvasRenderingContext2D, Transform2F, Vector2F};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use wasm_bindgen_test::console_log;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -19,7 +20,7 @@ use std::{
 };
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 
-use web_sys::{console, window, HtmlCanvasElement, MouseEvent};
+use web_sys::{console, js_sys, window, HtmlCanvasElement, MouseEvent, WebGl2RenderingContext};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -192,7 +193,7 @@ impl SceneManager {
 impl SceneManager {
     pub fn render(&self) {
         if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
-            renderer.render(|ctx| self.render_scene(ctx));
+            renderer.render(|ctx| self.render_scene(ctx), |gl| self.render_gl(gl));
         }
     }
 
@@ -200,6 +201,89 @@ impl SceneManager {
         self.prepare_renderers(ctx);
         self.render_objects(ctx);
         ctx.restore();
+    }
+
+    fn render_gl(&self, gl: &mut WebGl2RenderingContext) {
+        console_log!("render_gl");
+        // Clear the canvas
+        gl.clear_color(0.9, 0.9, 0.9, 1.0);
+        gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        
+        // Vertex shader source
+        let vertex_shader_source = r#"#version 300 es
+            in vec4 position;
+            void main() {
+                gl_Position = position;
+            }
+        "#;
+
+        // Fragment shader source
+        let fragment_shader_source = r#"#version 300 es
+            precision mediump float;
+            out vec4 outColor;
+            void main() {
+                outColor = vec4(1.0, 0.0, 0.0, 1.0); // Red color
+            }
+        "#;
+
+        // Create and compile shaders
+        let vertex_shader = gl.create_shader(WebGl2RenderingContext::VERTEX_SHADER).unwrap();
+        gl.shader_source(&vertex_shader, vertex_shader_source);
+        gl.compile_shader(&vertex_shader);
+
+        let fragment_shader = gl.create_shader(WebGl2RenderingContext::FRAGMENT_SHADER).unwrap();
+        gl.shader_source(&fragment_shader, fragment_shader_source);
+        gl.compile_shader(&fragment_shader);
+
+        // Create shader program
+        let program = gl.create_program().unwrap();
+        gl.attach_shader(&program, &vertex_shader);
+        gl.attach_shader(&program, &fragment_shader);
+        gl.link_program(&program);
+        gl.use_program(Some(&program));
+
+        // Create vertex buffer
+        let vertices: [f32; 12] = [
+            -0.5, -0.5,  // Bottom left
+             0.5, -0.5,  // Bottom right
+             0.5,  0.5,  // Top right
+            -0.5, -0.5,  // Bottom left
+             0.5,  0.5,  // Top right
+            -0.5,  0.5,  // Top left
+        ];
+
+        let position_attribute_location = gl.get_attrib_location(&program, "position");
+        let buffer = gl.create_buffer().unwrap();
+        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
+
+        // Note that `vertices` is getting converted to a raw byte array here
+        unsafe {
+            let positions_array_buf_view = js_sys::Float32Array::view(&vertices);
+            gl.buffer_data_with_array_buffer_view(
+                WebGl2RenderingContext::ARRAY_BUFFER,
+                &positions_array_buf_view,
+                WebGl2RenderingContext::STATIC_DRAW,
+            );
+        }
+
+        let vao = gl.create_vertex_array().unwrap();
+        gl.bind_vertex_array(Some(&vao));
+        gl.enable_vertex_attrib_array(position_attribute_location as u32);
+        gl.vertex_attrib_pointer_with_i32(
+            position_attribute_location as u32,
+            2,                                    // size (num components)
+            WebGl2RenderingContext::FLOAT,       // type
+            false,                               // normalize
+            0,                                   // stride
+            0,                                   // offset
+        );
+
+        // Draw the square
+        gl.draw_arrays(
+            WebGl2RenderingContext::TRIANGLES,
+            0,                                   // offset
+            6,                                   // count
+        );
     }
 
     fn prepare_renderers(&self, ctx: &mut CanvasRenderingContext2D) {
@@ -522,3 +606,4 @@ impl Drop for SceneManager {
         self.cleanup();
     }
 }
+

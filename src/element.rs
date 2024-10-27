@@ -7,7 +7,7 @@ pub use image::{ImageElement, ImageOptions};
 
 use serde_json::Value;
 use std::fmt::Debug;
-use web_sys::CanvasRenderingContext2d;
+use web_sys::{CanvasRenderingContext2d, WebGl2RenderingContext};
 
 use std::any::{Any, TypeId};
 use crate::app::App;
@@ -197,6 +197,8 @@ pub trait Renderable: Debug + Dirty + Eventable + Any  {
     fn to_value(&self) -> Value;
 
     fn set_position(&mut self, x: f32, y: f32);
+
+    fn render_gl(&self, gl: &mut WebGl2RenderingContext) {}
 }
 
 // 容器 trait

@@ -11,6 +11,7 @@ mod object_manager;
 mod renderer;
 mod scene_manager;
 mod source_manager;
+mod render_buffer;
 
 use app::App;
 use source_manager::{get_source_manager, SourceType};
