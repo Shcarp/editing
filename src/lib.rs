@@ -32,17 +32,22 @@ pub async fn wasm_main() {
                 .load_from_resource(SourceType::ImageUrl(IMAGE_URL.to_string()))
                 .await.unwrap();
 
+            app.scene_manager.borrow_mut().set_center(500.0, 500.0);
+
             // 创建100张图片并添加到app中
-            for i in 0..100 {
+            let size = 1360.0;
+            for i in 0..2 {
                 let mut image = ImageElement::new_from_source_key(key.clone());
-                let x = (i % 10) as f32 * 200.0;
-                let y = (i / 10) as f32 * 200.0;
-                image.set_height(200.0);
-                image.set_width(200.0);
+                let x = (i % 10) as f32 * size;
+                let y = (i / 10) as f32 * size;
+                image.set_height(size);
+                image.set_width(size);
                 image.set_x(x);
                 image.set_y(y);
                 image.set_rotation(i as f32 * 10.0);
-                
+                image.set_stroke("red".to_string());
+                image.set_stroke_width(10.0);
+
                 app.add(image);
             }
         }

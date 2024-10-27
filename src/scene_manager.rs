@@ -288,8 +288,8 @@ impl SceneManager {
 
     fn prepare_renderers(&self, ctx: &mut CanvasRenderingContext2D) {
         let dpr = web_sys::window().unwrap().device_pixel_ratio();
-        ctx.clear();
-        ctx.save();
+        // ctx.clear();
+        // ctx.save();
         ctx.scale(vec2f(dpr as f32, dpr as f32));
         ctx.set_line_width(1.0 / dpr as f32);
         let translate_transform = Transform2F::from_translation(vec2f(self.center_x as f32, self.center_y as f32));

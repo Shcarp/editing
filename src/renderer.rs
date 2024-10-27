@@ -1,12 +1,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use pathfinder_color::ColorF;
 use pathfinder_renderer::options::BuildOptions;
 use pathfinder_renderer::scene::Scene;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_test::console_log;
 use web_sys::{HtmlCanvasElement, OffscreenCanvas, WebGl2RenderingContext};
-use pathfinder_canvas::{Canvas, CanvasFontContext, CanvasRenderingContext2D};
+use pathfinder_canvas::{Canvas, CanvasFontContext, CanvasRenderingContext2D, CompositeOperation};
 use pathfinder_renderer::gpu::renderer::Renderer as PathfinderRenderer;
 use pathfinder_geometry::vector::vec2i;
 use pathfinder_renderer::concurrent::executor::SequentialExecutor;
@@ -60,13 +60,14 @@ impl Renderer {
         let mode = RendererMode::default_for_device(&pathfinder_device);
         let options = RendererOptions {
             dest: DestFramebuffer::full_window(framebuffer_size),
-            background_color: None, // 透明背景
+            background_color: Some(ColorF::black()),
+            show_debug_ui: true,
             ..RendererOptions::default()
         };
         let resource_loader = EmbeddedResourceLoader::new();
         let pathfinder_renderer = Some(PathfinderRenderer::new(
             pathfinder_device,
-            &resource_loader,
+            &resource_loader,   
             mode,
             options,
         ));
@@ -86,17 +87,22 @@ impl Renderer {
     // 使用 Pathfinder 进行矢量渲染
     pub fn render_vector(&mut self, render_fn: impl FnOnce(&mut CanvasRenderingContext2D)) {
         let framebuffer_size = vec2i(self.width as i32, self.height as i32);
+
         let pathfinder_canvas = Canvas::new(framebuffer_size.to_f32());
+
         let font_context = CanvasFontContext::from_system_source();
         let mut ctx = pathfinder_canvas.get_context_2d(font_context);
+
+        // ctx.set_global_composite_operation(CompositeOperation::DestinationOver);
 
         render_fn(&mut ctx);
 
         self.scene = ctx.into_canvas().into_scene();
         if let Some(renderer) = &mut self.pathfinder_renderer {
-            self.scene.build_and_render(renderer, BuildOptions::default(), SequentialExecutor);
+            let options = BuildOptions::default();
+            
+            self.scene.build_and_render(renderer, options, SequentialExecutor);
         }
-
     }
 
     // 使用 WebGL 直接渲染
@@ -104,9 +110,6 @@ impl Renderer {
         self.gl_renderer.render_to_buffer(render_fn);
         if self.gl_renderer.has_content() {
             self.gl_renderer.flush_to_canvas();
-        } else {
-            // self.gl_renderer.clear_buffer();
-            console_log!("no content");
         }
     }
 
@@ -116,11 +119,10 @@ impl Renderer {
         vector_fn: impl FnOnce(&mut CanvasRenderingContext2D),
         webgl_fn: impl FnOnce(&mut WebGl2RenderingContext),
     ) {
-        // 先进行矢量渲染
+
         self.render_vector(vector_fn);
         
-        // 然后进行 WebGL 渲染
-        self.render_webgl(webgl_fn);
+        // self.render_webgl(webgl_fn);
     }
 
     // 调整大小
