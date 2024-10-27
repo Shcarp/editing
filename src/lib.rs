@@ -14,10 +14,12 @@ mod scene_manager;
 mod source_manager;
 
 use app::App;
-use element::{Rect, RectOptions};
+use source_manager::{get_source_manager, SourceType};
 use wasm_bindgen::prelude::*;
-use web_sys::{window, console};
-use wasm_timer::Instant;
+use web_sys::console;
+use crate::element::{ImageElement, ImageOptions};
+
+const IMAGE_URL: &str = "/assets/openart-image_QE-Sr6RL_1729828917359_raw.jpg";
 
 #[wasm_bindgen(start)]
 pub async fn wasm_main() {
@@ -26,40 +28,12 @@ pub async fn wasm_main() {
     let init_result = app.init();
     match init_result {
         Ok(_) => {
-            let start_time = Instant::now();
+            let key = get_source_manager()
+                .load_from_resource(SourceType::ImageUrl(IMAGE_URL.to_string()))
+                .await.unwrap();
 
-            let center_x = 500.0;
-            let center_y = 500.0;
-            let radius = 400.0;
-            let total_rects = 10000;
-
-            let setup_time = start_time.elapsed();
-            console::log_1(&format!("Setup time: {:?}", setup_time).into());
-
-            let loop_start = Instant::now();
-            for i in 0..total_rects {
-                let angle = (i as f64 / total_rects as f64) * 2.0 * std::f64::consts::PI;
-                let x: f64 = center_x + radius * angle.cos();
-                let y = center_y + radius * angle.sin();
-
-                let rect = Rect::new(RectOptions {
-                    x,
-                    y,
-                    ..Default::default()
-                });
-
-                app.add(rect);
-            }
-            let loop_time = loop_start.elapsed();
-            console::log_1(&format!("Loop time: {:?}", loop_time).into());
-
-            let render_start = Instant::now();
-            app.request_render();
-            let render_time = render_start.elapsed();
-            console::log_1(&format!("Render request time: {:?}", render_time).into());
-
-            let total_time = start_time.elapsed();
-            console::log_1(&format!("Total execution time: {:?}", total_time).into());
+            let image = ImageElement::new_from_source_key(key);
+            app.add(image);
         }
         Err(err) => console::log_1(&err),
     }

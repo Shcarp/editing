@@ -16,8 +16,8 @@ watch:
 run: build serve
 
 open:
-    python -c "import webbrowser; webbrowser.open('http://localhost:8000')"
-    python -m http.server 8000
+    python -c "import webbrowser; webbrowser.open('http://localhost:8080')"
+    python -m http.server 8080
 
 default:
     @just --list

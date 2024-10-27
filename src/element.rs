@@ -2,7 +2,8 @@ mod rect;
 mod image;
 
 use pathfinder_canvas::CanvasRenderingContext2D;
-pub use rect::{Rect, RectOptions};
+pub use rect::Rect;
+pub use image::{ImageElement, ImageOptions};
 
 use serde_json::Value;
 use std::fmt::Debug;

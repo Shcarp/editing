@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::console;
 
 use crate::element::Renderable;
 use crate::events::{get_event_system, AppEvent};
@@ -12,14 +11,12 @@ use crate::history::History;
 use crate::object_manager::ObjectManager;
 use crate::scene_manager::SceneManager;
 use crate::scene_manager::SceneManagerOptions;
-use crate::source_manager::SourceManager;
 
 #[derive(Debug, Clone)]
 pub struct App {
     pub history: Rc<RefCell<History>>,
     pub object_manager: Rc<RefCell<ObjectManager>>,
     pub scene_manager: Rc<RefCell<SceneManager>>,
-    pub source_manager: Rc<RefCell<SourceManager>>,
     render_requested: Rc<Cell<bool>>,
 }
 
@@ -36,7 +33,6 @@ impl App {
             history: Rc::new(RefCell::new(History::new())), 
             object_manager: object_manager,
             scene_manager: scene_manager,
-            source_manager: Rc::new(RefCell::new(SourceManager::new())),
             render_requested: Rc::new(Cell::new(false)),
         }
     }

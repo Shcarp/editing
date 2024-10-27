@@ -201,6 +201,7 @@ pub fn get_canvas(canvas_id: &str) -> Result<HtmlCanvasElement, String> {
         .map_err(|_| format!("Element with id '{}' is not a canvas", canvas_id))
 }
 
+
 pub fn get_window_dpr() -> Result<f64, JsValue> {
     let window = window().ok_or("Failed to get window")?;
     let device_pixel_ratio = window.device_pixel_ratio();

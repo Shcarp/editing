@@ -5,12 +5,17 @@ use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{Arc, Mutex};
+use std::sync::Once;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{window, HtmlImageElement};
+use web_sys::HtmlImageElement;
 
 use crate::image::Image;
+
+// 资源类型
+pub enum SourceType {
+    ImageUrl(String),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SourceKey {
@@ -31,21 +36,9 @@ impl SourceManager {
     }
 
     pub fn load_source(&self, key: &SourceKey) -> Result<Rc<RefCell<Pattern>>, String> {
-        // 检查缓存
         if let Some(pattern) = self.cache.borrow().get(&key) {
             return Ok(pattern.clone());
         } else {
-            async {
-                let pattern = match key {
-                    SourceKey::Url(url) => self.load_from_url(&url).await,
-                    SourceKey::ResourceId(id) => self.load_from_resource(&id).await,
-                };
-
-                if let Ok(pattern) = pattern {
-                    let pattern = Rc::new(RefCell::new(pattern));
-                    self.cache.borrow_mut().insert(key.clone(), pattern);
-                }
-            };
             Err("Not found".to_string())
         }
     }
@@ -65,11 +58,12 @@ impl SourceManager {
             let _ = tx.try_send(Err("Failed to load image".to_string()));
         }) as Box<dyn FnOnce()>);
 
+        image.set_cross_origin(Some("anonymous"));
+
         image.set_onload(Some(callback.as_ref().unchecked_ref()));
         image.set_onerror(Some(error_callback.as_ref().unchecked_ref()));
         image.set_src(url);
 
-        // 修改这部分接收逻辑
         rx.next()
             .await
             .ok_or("Channel closed unexpectedly")?
@@ -79,10 +73,18 @@ impl SourceManager {
         Image::new(image).into_pattern()
     }
 
-    async fn load_from_resource(&self, id: &str) -> Result<Pattern, String> {
-        // 在浏览器环境中，ResourceId 可能指向预加载的资源或特定的资源URL
-        // 这里简单地将其视为 URL 处理
-        self.load_from_url(id).await
+    pub async fn load_from_resource(&self, id: SourceType) -> Result<SourceKey, String> {
+        match id {
+            SourceType::ImageUrl(url) => {
+                let pattern = self.load_from_url(&url).await?;
+                let key = SourceKey::Url(url);
+                let pattern = Rc::new(RefCell::new(pattern));
+                
+                self.cache.borrow_mut().insert(key.clone(), pattern.clone());
+                
+                Ok(key)
+            }
+        }
     }
 
     pub fn clear_cache(&self) {
@@ -91,5 +93,18 @@ impl SourceManager {
 
     pub fn remove_from_cache(&self, key: &SourceKey) {
         self.cache.borrow_mut().remove(key);
+    }
+}
+
+
+static INIT: Once = Once::new();
+static mut GLOBAL_SOURCE_MANAGER: Option<SourceManager> = None;
+
+pub fn get_source_manager() -> &'static mut SourceManager {
+    unsafe {
+        INIT.call_once(|| {
+            GLOBAL_SOURCE_MANAGER = Some(SourceManager::new());
+        });
+        GLOBAL_SOURCE_MANAGER.as_mut().unwrap()
     }
 }

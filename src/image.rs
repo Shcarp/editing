@@ -252,11 +252,10 @@ impl HtmlImageCanvasSource for HtmlImageElement {
     }
 
     fn into_pattern(self) -> Pattern {
-        let canvas: HtmlCanvasElement = self.dyn_into::<HtmlCanvasElement>().unwrap();
+        let canvas: HtmlCanvasElement = self.into_canvas();
         canvas.into_pattern()
     }
 }
-
 
 impl<'a> CanvasImageSource for Image<'a> {
     fn to_pattern(self,

@@ -111,7 +111,7 @@ impl Rect {
         rect
     }
 
-    pub fn render_fn(&self, ctx: &mut CanvasRenderingContext2D, fill: &str, stroke: &str) {
+    pub fn render_fn(&self, ctx: &mut CanvasRenderingContext2D) {
         let current_transform = ctx.transform();
         let transform = current_transform * self.get_transform();
 
@@ -120,7 +120,7 @@ impl Rect {
 
         let rect = RectF::new(Vector2F::new(0.0, 0.0), Vector2F::new(self.width as f32, self.height as f32));
         
-        let color = fill.parse::<CssColor>().unwrap();
+        let color = self.fill.parse::<CssColor>().unwrap();
         let color_u = ColorU::new(color.r as u8, color.g as u8, color.b as u8, (color.a * 255.0) as u8);
 
         ctx.set_fill_style(color_u);
@@ -136,7 +136,7 @@ impl Rect {
                     (self.height - self.stroke_width) as f32
                 )
             );
-            let color = stroke.parse::<CssColor>().unwrap();
+            let color = self.stroke.parse::<CssColor>().unwrap();
             let color_u = ColorU::new(color.r as u8, color.g as u8, color.b as u8, (color.a * 255.0) as u8);
             ctx.set_stroke_style(color_u);
             ctx.stroke_rect(rect);
@@ -185,7 +185,7 @@ impl Renderable for Rect {
     }
 
     fn render(&self, renderer: &mut CanvasRenderingContext2D) {
-        self.render_fn(renderer, &self.fill, &self.stroke)
+        self.render_fn(renderer)
     }
 
     fn position(&self) -> (f64, f64) {

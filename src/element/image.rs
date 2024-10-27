@@ -1,7 +1,7 @@
 use super::{Dirty, Eventable, ObjectId, Renderable};
 use crate::history::{HistoryItem, ObjectHistoryItem};
 use crate::app::App;
-use crate::source_manager::SourceKey;
+use crate::source_manager::{get_source_manager, SourceKey};
 use css_color_parser::Color as CssColor;
 use dirty_setter::DirtySetter;
 use pathfinder_canvas::{vec2f, CanvasRenderingContext2D, RectF, Transform2F, Vector2F};
@@ -23,7 +23,6 @@ pub struct ImageOptions {
     pub skew_x: f64,
     pub skew_y: f64,
     pub rotation: f64,
-    pub source: SourceKey,
 }
 
 impl Default for ImageOptions {
@@ -42,7 +41,6 @@ impl Default for ImageOptions {
             skew_x: 0.0,
             skew_y: 0.0,
             rotation: 0.0,
-            source: SourceKey::Url("".to_string()),
         }
     }
 }
@@ -80,7 +78,7 @@ pub struct ImageElement {
     pub rotation: f64,
 
     #[dirty_setter]
-    pub source: SourceKey,
+    pub source: Option<SourceKey>,
 
     #[serde(skip)]
     app: Option<App>,
@@ -110,32 +108,48 @@ impl ImageElement {
             dirty: true,
             app: None,
             cached_transform: None,
-            source: options.source,
+            source: None,
         };
 
         image.calc_transform();
-
         image
     }
 
-    pub fn render_fn(&self, ctx: &mut CanvasRenderingContext2D, fill: &str, stroke: &str) {
+    pub fn new_from_source_key(source: SourceKey) -> Self {
+        let mut image = Self::new(Default::default());
+        match get_source_manager().load_source(&source) {
+            Ok(pattern) => {
+                let data = pattern.borrow().clone();
+                image.width = data.size().x() as f64;
+                image.height = data.size().y() as f64;
+                image.source = Some(source);
+            },
+            Err(e) => {
+                return image;
+            }
+        }
+        image
+    }
+
+
+    pub fn render_fn(&self, ctx: &mut CanvasRenderingContext2D) {
         let current_transform = ctx.transform();
         let transform = current_transform * self.get_transform();
         ctx.set_transform(&transform);
         ctx.set_global_alpha(self.opacity as f32);
 
-        if let Some(app) = self.app.as_ref() {
-                match app.source_manager.borrow().load_source(&self.source) {
+        if let Some(source) = self.source.as_ref() {
+            match get_source_manager().load_source(source) {
                 Ok(pattern) => {
                     let data = pattern.borrow().clone();
-                    ctx.draw_image(data, Vector2F::zero());
+                    let rect = RectF::new(Vector2F::zero(), Vector2F::new(self.width as f32, self.height as f32));
+                    ctx.draw_image(data, rect);
                 },
                 Err(e) => {
                     return;
                 }
-            };
+            }
         }
-
 
         if self.stroke_width > 0.0 {
             ctx.set_line_width(self.stroke_width as f32);
@@ -147,7 +161,7 @@ impl ImageElement {
                     (self.height - self.stroke_width) as f32
                 )
             );
-            let color = stroke.parse::<CssColor>().unwrap();
+            let color = self.stroke.parse::<CssColor>().unwrap();
             let color_u = ColorU::new(color.r as u8, color.g as u8, color.b as u8, (color.a * 255.0) as u8);
             ctx.set_stroke_style(color_u);
             ctx.stroke_rect(rect);
@@ -197,7 +211,7 @@ impl Renderable for ImageElement {
     }
 
     fn render(&self, renderer: &mut CanvasRenderingContext2D) {
-        self.render_fn(renderer, &self.fill, &self.stroke)
+        self.render_fn(renderer)
     }
 
     fn position(&self) -> (f64, f64) {
