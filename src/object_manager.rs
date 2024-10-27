@@ -1,5 +1,5 @@
 use crate::{
-    app::App, element::Renderable, history::{ElementHistoryItem, HistoryItem}, render_control::{UpdateBody, UpdateMessage, UpdateType}
+    app::App, element::Renderable, history::{ElementHistoryItem, HistoryItem}
 };
 use glam::DVec2;
 use serde_json::Value;
@@ -15,7 +15,6 @@ struct ObjectData {
     last_update: f64,
     position: DVec2,
 }
-
 
 #[derive(Debug)]
 pub struct ObjectManager {
@@ -46,7 +45,7 @@ impl ObjectManager {
             let object_id = object.id().value().to_string();
             let object_type = object.get_type().to_string();
             let object_value = object.to_value();
-            let position = DVec2::new(object.position().0, object.position().1);
+            let position = DVec2::new(object.position().0 as f64, object.position().1 as f64);
             let object_data = ObjectData {
                 object: Rc::new(RefCell::new(object)),
                 last_update: self.total_time,
@@ -116,42 +115,6 @@ impl ObjectManager {
             .iter()
             .map(|(_, data)| data.object.clone())
             .collect()
-    }
-
-    pub fn update_object_from_message(&mut self, messages: &Vec<UpdateMessage>) {
-        let mut update_objects: HashMap<String, Vec<UpdateBody>> = HashMap::new();
-        for message in messages.iter() {
-            if let UpdateMessage::Update(update_body) = message {
-                match &update_body.update_type {
-                    UpdateType::ObjectUpdate(id) => {
-                        update_objects
-                            .entry(id.clone())
-                            .or_insert_with(Vec::new)
-                            .push(update_body.clone());
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        for (object_id, updates) in update_objects.iter() {
-            match self.objects.get_mut(object_id) {
-                Some(data) => {
-                    let mut object = data.object.borrow_mut();
-                    for update in updates.iter() {
-                        match &update.update_type {
-                            UpdateType::ObjectUpdate(id) => {
-                                if id == object_id {
-                                    object.update(update.data.clone());
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-                None => todo!(),
-            }
-        }
     }
 
     pub fn update_object(&mut self, id: String, data: Value) {

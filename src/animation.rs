@@ -17,11 +17,11 @@ pub use qwen::*;
 #[derive(Debug, Clone)]
 pub enum AnimationValue {
     Int(i32),
-    Float(f64),
+    Float(f32),
     String(String),
     Color((u8, u8, u8, u8)),
-    Vector2D((f64, f64)),
-    Matrix([f64; 6]),
+    Vector2D((f32, f32)),
+    Matrix([f32; 6]),
 }
 
 pub trait Animatable {
@@ -59,14 +59,14 @@ pub enum AnimationError {
 
 #[derive(Debug)]
 pub enum AnimationStatus {
-    InProgress(f64),
+    InProgress(f32),
     Completed,
 }
 
 pub trait Animation: Debug {
     fn update(
         &mut self,
-        delta: f64,
+        delta: f32,
         current_values: &HashMap<String, AnimationValue>,
     ) -> AnimationStatus;
     fn get_progress_values(&self) -> HashMap<String, AnimationValue>;
@@ -138,7 +138,7 @@ impl AnimationManager {
     //     }
 
     //     let now = Instant::now();
-    //     let delta = now.duration_since(self.last_update).as_secs_f64();
+    //     let delta = now.duration_since(self.last_update).as_secs_f32();
     //     self.last_update = now;
 
     //     let mut completed_indices = Vec::new();
@@ -199,7 +199,7 @@ impl AnimationManager {
     pub fn sender(&mut self) {
         // console::log_1(&"sender".into());
         let now = Instant::now();
-        if now.duration_since(self.last_send).as_secs_f64() >= 0.008 {
+        if now.duration_since(self.last_send).as_secs_f32() >= 0.008 {
             if let Err(e) = self.sender.try_send(self.is_empty()) {
                 console::error_1(&format!("Failed to send animation update: {}", e).into());
             }

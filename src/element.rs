@@ -175,6 +175,10 @@ pub trait Eventable {
         // Return a list of all event types that have listeners
         Vec::new()
     }
+
+    fn contains_point(&self, x: f32, y: f32) -> bool {
+        false
+    }
 }
 
 pub trait Renderable: Debug + Dirty + Eventable + Any  {
@@ -186,11 +190,13 @@ pub trait Renderable: Debug + Dirty + Eventable + Any  {
     fn detach(&mut self);
     
     fn render(&self, ctx: &mut CanvasRenderingContext2D);
-    fn position(&self) -> (f64, f64);
+    fn position(&self) -> (f32, f32);
     
     fn get_type(&self) -> &str;
 
     fn to_value(&self) -> Value;
+
+    fn set_position(&mut self, x: f32, y: f32);
 }
 
 // 容器 trait

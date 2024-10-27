@@ -24,13 +24,13 @@ use web_sys::{console, window, HtmlCanvasElement, MouseEvent};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneDirtyData {
-    pub zoom: f64,
-    pub offset_x: f64,
-    pub offset_y: f64,
-    pub rotation: f64,
+    pub zoom: f32,
+    pub offset_x: f32,
+    pub offset_y: f32,
+    pub rotation: f32,
     pub height: u32,
     pub width: u32,
-    pub dpr: f64,
+    pub dpr: f32,
 }
 
 pub struct SceneManagerOptions {
@@ -38,7 +38,7 @@ pub struct SceneManagerOptions {
     pub object_manager: Rc<RefCell<ObjectManager>>,
     pub height: Option<u32>,
     pub width: Option<u32>,
-    pub device_pixel_ratio: Option<f64>,
+    pub device_pixel_ratio: Option<f32>,
 }
 
 impl Default for SceneManagerOptions {
@@ -49,14 +49,14 @@ impl Default for SceneManagerOptions {
             object_manager: Rc::new(RefCell::new(ObjectManager::new())),
             height: None,
             width: None,
-            device_pixel_ratio: Some(window_dpr),
+            device_pixel_ratio: Some(window_dpr as f32),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SceneManager {
-    dpr: Option<f64>,
+    dpr: Option<f32>,
     height: Option<u32>,
     width: Option<u32>,
     canvas_id: String,
@@ -64,13 +64,13 @@ pub struct SceneManager {
     renderer: Rc<RefCell<Option<Renderer>>>,
     object_manager: Rc<RefCell<ObjectManager>>,
 
-    zoom: f64,
-    offset_x: f64,
-    offset_y: f64,
-    rotation: f64,
+    zoom: f32,
+    offset_x: f32,
+    offset_y: f32,
+    rotation: f32,
 
-    center_x: f64,
-    center_y: f64,
+    center_x: f32,
+    center_y: f32,
 
     event_handlers: Rc<RefCell<EventHandlers>>,
     event_listeners: Rc<RefCell<HashMap<String, Closure<dyn FnMut(MouseEvent)>>>>,
@@ -145,14 +145,14 @@ impl SceneManager {
 }
 
 impl SceneManager {
-    pub fn set_pixel_ratio(&mut self, ratio: f64) -> Result<(), JsValue> {
+    pub fn set_pixel_ratio(&mut self, ratio: f32) -> Result<(), JsValue> {
         // let (css_width, css_height) = get_canvas_css_size(&canvas)?;
         if let Some(canvas) = self.canvas.as_ref() {
             let size_canvas = get_canvas(&self.canvas_id)?;
             let (css_width, css_height) = get_canvas_css_size(&size_canvas)?;
 
-            let physical_width = (css_width as f64 * ratio) as u32;
-            let physical_height = (css_height as f64 * ratio) as u32;
+            let physical_width = (css_width as f32 * ratio) as u32;
+            let physical_height = (css_height as f32 * ratio) as u32;
 
             canvas.borrow_mut().set_width(physical_width);
             canvas.borrow_mut().set_height(physical_height);
@@ -363,14 +363,14 @@ impl SceneManager {
         // let rect = canvas.borrow().get_bounding_client_rect();
         // let dpr = self.dpr.unwrap_or(1.0);
 
-        // let canvas_x = (event.client_x() as f64 - rect.left()) * dpr;
-        // let canvas_y = (event.client_y() as f64 - rect.top()) * dpr;
+        // let canvas_x = (event.client_x() as f32 - rect.left()) * dpr;
+        // let canvas_y = (event.client_y() as f32 - rect.top()) * dpr;
 
         // let transform = convert_1x6_to_3x3(self.calc_transform());
         // let inverse_transform = transform.try_inverse()?;
 
         // let original_point = inverse_transform * na::Vector3::new(canvas_x, canvas_y, 1.0);
-        // let (original_x, original_y) = (original_point[0] as f64, original_point[1] as f64);
+        // let (original_x, original_y) = (original_point[0] as f32, original_point[1] as f32);
 
         // let mut hit_renderer = self.hit_renderer.borrow_mut();
         // let hit_renderer = hit_renderer.as_mut().unwrap();
@@ -402,14 +402,14 @@ impl SceneManager {
         final_transform
     }
 
-    pub fn set_zoom(&mut self, zoom: f64) {
+    pub fn set_zoom(&mut self, zoom: f32) {
         let old_data = self.get_dirty_data();
         self.zoom = zoom.max(0.1).min(10.0); // Limit zoom range
         let new_data = self.get_dirty_data();
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn set_offset(&mut self, x: f64, y: f64) {
+    pub fn set_offset(&mut self, x: f32, y: f32) {
         let old_data = self.get_dirty_data();
         self.offset_x = x;
         self.offset_y = y;
@@ -417,14 +417,14 @@ impl SceneManager {
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn set_rotation(&mut self, rotation: f64) {
+    pub fn set_rotation(&mut self, rotation: f32) {
         let old_data = self.get_dirty_data();
-        self.rotation = rotation % (2.0 * std::f64::consts::PI);
+        self.rotation = rotation % (2.0 * std::f32::consts::PI);
         let new_data = self.get_dirty_data();
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn pan(&mut self, dx: f64, dy: f64) {
+    pub fn pan(&mut self, dx: f32, dy: f32) {
         let old_data = self.get_dirty_data();
         self.offset_x += dx;
         self.offset_y += dy;
@@ -432,7 +432,7 @@ impl SceneManager {
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn zoom_at(&mut self, x: f64, y: f64, factor: f64) {
+    pub fn zoom_at(&mut self, x: f32, y: f32, factor: f32) {
         let old_data = self.get_dirty_data();
         let new_zoom = (self.zoom * factor).max(0.1).min(10.0);
         let zoom_change = new_zoom / self.zoom;
@@ -481,14 +481,14 @@ impl SceneManager {
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn set_dpr(&mut self, dpr: f64) {
+    pub fn set_dpr(&mut self, dpr: f32) {
         let old_data = self.get_dirty_data();
         self.dpr = Some(dpr);
         let new_data = self.get_dirty_data();
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn update_rotation(&mut self, rotation_speed: f64) {
+    pub fn update_rotation(&mut self, rotation_speed: f32) {
         let old_data = self.get_dirty_data();
         self.rotation += rotation_speed;
         let new_data = self.get_dirty_data();
@@ -496,7 +496,7 @@ impl SceneManager {
     }
 
     // 设置旋转中心
-    pub fn set_center(&mut self, x: f64, y: f64) {
+    pub fn set_center(&mut self, x: f32, y: f32) {
         let old_data = self.get_dirty_data();
         self.center_x = x;
         self.center_y = y;

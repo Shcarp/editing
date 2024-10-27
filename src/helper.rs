@@ -63,8 +63,8 @@ pub fn generate_id() -> String {
     format!("{}-{:x}-{:x}", timestamp as u64, random_part, counter)
 }
 
-pub fn normalize_if_needed(mut matrix: na::Matrix1x6<f64>) -> na::Matrix1x6<f64> {
-    const NORMALIZATION_THRESHOLD: f64 = 0.9999;
+pub fn normalize_if_needed(mut matrix: na::Matrix1x6<f32>) -> na::Matrix1x6<f32> {
+    const NORMALIZATION_THRESHOLD: f32 = 0.9999;
     let det = matrix[0] * matrix[3] - matrix[1] * matrix[2];
     if (det - 1.0).abs() > NORMALIZATION_THRESHOLD {
         let scale = det.sqrt();
@@ -76,8 +76,8 @@ pub fn normalize_if_needed(mut matrix: na::Matrix1x6<f64>) -> na::Matrix1x6<f64>
     matrix
 }
 
-pub fn normalize_3x3_if_needed(mut matrix: na::Matrix3<f64>) -> na::Matrix3<f64> {
-    const NORMALIZATION_THRESHOLD: f64 = 0.9999;
+pub fn normalize_3x3_if_needed(mut matrix: na::Matrix3<f32>) -> na::Matrix3<f32> {
+    const NORMALIZATION_THRESHOLD: f32 = 0.9999;
 
     let det = matrix[(0, 0)] * matrix[(1, 1)] - matrix[(0, 1)] * matrix[(1, 0)];
 
@@ -99,13 +99,13 @@ pub fn normalize_3x3_if_needed(mut matrix: na::Matrix3<f64>) -> na::Matrix3<f64>
 }
 
 // 将 1 * 6 转为 3 * 3
-pub fn convert_1x6_to_3x3(matrix: na::Matrix1x6<f64>) -> na::Matrix3<f64> {
+pub fn convert_1x6_to_3x3(matrix: na::Matrix1x6<f32>) -> na::Matrix3<f32> {
     na::Matrix3::new(
         matrix[0], matrix[2], matrix[4], matrix[1], matrix[3], matrix[5], 0.0, 0.0, 1.0,
     )
 }
 
-pub fn convert_3x3_to_1x6(matrix: na::Matrix3<f64>) -> na::Matrix1x6<f64> {
+pub fn convert_3x3_to_1x6(matrix: na::Matrix3<f32>) -> na::Matrix1x6<f32> {
     na::Matrix1x6::new(
         matrix[(0, 0)],
         matrix[(1, 0)],
@@ -116,8 +116,8 @@ pub fn convert_3x3_to_1x6(matrix: na::Matrix3<f64>) -> na::Matrix1x6<f64> {
     )
 }
 
-pub fn get_rotation_matrix(angle_radians: f64) -> na::Matrix3<f64> {
-    const EPSILON: f64 = 1e-6;
+pub fn get_rotation_matrix(angle_radians: f32) -> na::Matrix3<f32> {
+    const EPSILON: f32 = 1e-6;
     if angle_radians.abs() < EPSILON {
         let sin = angle_radians;
         let cos = 1.0 - 0.5 * angle_radians * angle_radians;
@@ -128,14 +128,14 @@ pub fn get_rotation_matrix(angle_radians: f64) -> na::Matrix3<f64> {
     }
 }
 
-pub fn print_matrice(name: &str, matrix: na::Matrix1x6<f64>) {
+pub fn print_matrice(name: &str, matrix: na::Matrix1x6<f32>) {
     console::log_1(&JsValue::from_str(&format!(
         "{} offset {},{}, {}, {}, {}, {}",
         name, matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]
     )));
 }
 
-pub fn print_matrix_3x3(name: &str, matrix: na::Matrix3<f64>) {
+pub fn print_matrix_3x3(name: &str, matrix: na::Matrix3<f32>) {
     console::log_1(&JsValue::from_str(&format!(
         "{} matrix:\n[{:.6}, {:.6}, {:.6}\n {:.6}, {:.6}, {:.6}\n {:.6}, {:.6}, {:.6}]",
         name,
@@ -161,7 +161,7 @@ pub fn get_canvas_css_size(canvas: &HtmlCanvasElement) -> Result<(u32, u32), JsV
     let height = computed_style.get_property_value("height")?;
 
 
-    let parse_px = |s: &str| -> f64 {
+    let parse_px = |s: &str| -> f32 {
         s.trim_end_matches("px").parse().unwrap_or_else(|_| {
             console::log_1(&JsValue::from_str(&format!(
                 "无法解析 '{}', 使用 offsetWidth/Height",
@@ -175,10 +175,10 @@ pub fn get_canvas_css_size(canvas: &HtmlCanvasElement) -> Result<(u32, u32), JsV
     let mut css_height = parse_px(&height);
 
     if css_width < 0.0 {
-        css_width = canvas.offset_width() as f64;
+        css_width = canvas.offset_width() as f32;
     }
     if css_height < 0.0 {
-        css_height = canvas.offset_height() as f64;
+        css_height = canvas.offset_height() as f32;
     }
 
     console::log_1(&JsValue::from_str(&format!(
@@ -202,43 +202,43 @@ pub fn get_canvas(canvas_id: &str) -> Result<HtmlCanvasElement, String> {
 }
 
 
-pub fn get_window_dpr() -> Result<f64, JsValue> {
+pub fn get_window_dpr() -> Result<f32, JsValue> {
     let window = window().ok_or("Failed to get window")?;
     let device_pixel_ratio = window.device_pixel_ratio();
     console::log_1(&JsValue::from_str(&format!(
         "device_pixel_ratio: {}",
         device_pixel_ratio
     )));
-    Ok(device_pixel_ratio)
+    Ok(device_pixel_ratio as f32)
 }
 
 pub mod easing {
-    use std::f64::consts::PI;
-    pub fn linear(t: f64) -> f64 {
+    use std::f32::consts::PI;
+    pub fn linear(t: f32) -> f32 {
         t
     }
-    pub fn ease_in_quad(t: f64) -> f64 {
+    pub fn ease_in_quad(t: f32) -> f32 {
         t * t
     }
-    pub fn ease_out_quad(t: f64) -> f64 {
+    pub fn ease_out_quad(t: f32) -> f32 {
         t * (2.0 - t)
     }
-    pub fn ease_in_out_quad(t: f64) -> f64 {
+    pub fn ease_in_out_quad(t: f32) -> f32 {
         if t < 0.5 {
             2.0 * t * t
         } else {
             -1.0 + (4.0 - 2.0 * t) * t
         }
     }
-    pub fn ease_in_cubic(t: f64) -> f64 {
+    pub fn ease_in_cubic(t: f32) -> f32 {
         t * t * t
     }
-    pub fn ease_out_cubic(t: f64) -> f64 {
+    pub fn ease_out_cubic(t: f32) -> f32 {
         let t2 = t * t;
         t2 * (3.0 - 2.0 * t)
     }
 
-    pub fn ease_in_out_cubic(t: f64) -> f64 {
+    pub fn ease_in_out_cubic(t: f32) -> f32 {
         if t < 0.5 {
             4.0 * t * t * t
         } else {
@@ -246,20 +246,20 @@ pub mod easing {
         }
     }
 
-    pub fn ease_in_elastic(t: f64) -> f64 {
+    pub fn ease_in_elastic(t: f32) -> f32 {
         if t == 0.0 || t == 1.0 {
             return t;
         }
         let p = 0.3;
-        -(2.0_f64.powf(10.0 * (t - 1.0))) * ((t - 1.0 - p / 4.0) * (2.0 * PI) / p).sin()
+        -(2.0_f32.powf(10.0 * (t - 1.0))) * ((t - 1.0 - p / 4.0) * (2.0 * PI) / p).sin()
     }
 
-    pub fn ease_out_elastic(t: f64) -> f64 {
+    pub fn ease_out_elastic(t: f32) -> f32 {
         if t == 0.0 || t == 1.0 {
             return t;
         }
         let p = 0.3;
-        2.0_f64.powf(-10.0 * t) * (t - p / 4.0) * (2.0 * PI / p).sin() + 1.0
+        2.0_f32.powf(-10.0 * t) * (t - p / 4.0) * (2.0 * PI / p).sin() + 1.0
     }
 }
 
@@ -280,7 +280,7 @@ pub fn create_element(element_type: &str, data: &Value) -> Result<Box<dyn Render
     Ok(element)
 }
 
-pub fn matrix1x6_to_transform2f(matrix: &na::Matrix1x6<f64>) -> Transform2F {
+pub fn matrix1x6_to_transform2f(matrix: &na::Matrix1x6<f32>) -> Transform2F {
     if let [a, b, c, d, e, f] = matrix.as_slice() {
         Transform2F::row_major(*a as f32, *b as f32, *c as f32, *d as f32, *e as f32, *f as f32)
     } else {

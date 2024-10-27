@@ -1,6 +1,6 @@
 struct BoundingBox {
-    x: f64,
-    y: f64,
-    width: f64,
-    height: f64,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
 }

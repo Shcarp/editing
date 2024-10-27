@@ -5,9 +5,9 @@ use super::{AnimationValue, Animation, AnimationStatus};
 
 pub struct QwenAnimation {
     properties: HashMap<String, (AnimationValue, AnimationValue)>, // (start, end)
-    duration: f64,
-    elapsed: f64,
-    easing: Box<dyn Fn(f64) -> f64 >,
+    duration: f32,
+    elapsed: f32,
+    easing: Box<dyn Fn(f32) -> f32 >,
 }
 
 impl Debug for QwenAnimation {
@@ -19,7 +19,7 @@ impl Debug for QwenAnimation {
 impl Animation for QwenAnimation {
     fn update(
         &mut self,
-        delta: f64,
+        delta: f32,
         current_values: &HashMap<String, AnimationValue>,
     ) -> AnimationStatus {
         self.elapsed += delta;
@@ -44,22 +44,22 @@ impl Animation for QwenAnimation {
         self.properties.iter().map(|(k, (start, end))| {
             let value = match (start, end) {
                 (AnimationValue::Int(s), AnimationValue::Int(e)) => {
-                    AnimationValue::Int(*s + (((*e as f64 - *s as f64) * eased_progress) as i32))
+                    AnimationValue::Int(*s + (((*e as f32 - *s as f32) * eased_progress) as i32))
                 },
                 (AnimationValue::Float(s), AnimationValue::Float(e)) => {
                     AnimationValue::Float(s + (e - s) * eased_progress)
                 },
                 (AnimationValue::String(s), AnimationValue::String(e)) => {
                     // For strings, we'll interpolate the length
-                    let new_len = s.len() + ((e.len() as f64 - s.len() as f64) * eased_progress) as usize;
+                    let new_len = s.len() + ((e.len() as f32 - s.len() as f32) * eased_progress) as usize;
                     AnimationValue::String(s.chars().take(new_len).collect())
                 },
                 (AnimationValue::Color(s), AnimationValue::Color(e)) => {
                     let new_color = (
-                        (s.0 as f64 + ((e.0 as f64 - s.0 as f64) * eased_progress)) as u8,
-                        (s.1 as f64 + ((e.1 as f64 - s.1 as f64) * eased_progress)) as u8,
-                        (s.2 as f64 + ((e.2 as f64 - s.2 as f64) * eased_progress)) as u8,
-                        (s.3 as f64 + ((e.3 as f64 - s.3 as f64) * eased_progress)) as u8,
+                        (s.0 as f32 + ((e.0 as f32 - s.0 as f32) * eased_progress)) as u8,
+                        (s.1 as f32 + ((e.1 as f32 - s.1 as f32) * eased_progress)) as u8,
+                        (s.2 as f32 + ((e.2 as f32 - s.2 as f32) * eased_progress)) as u8,
+                        (s.3 as f32 + ((e.3 as f32 - s.3 as f32) * eased_progress)) as u8,
                     );
                     AnimationValue::Color(new_color)
                 },
@@ -89,7 +89,7 @@ impl Animation for QwenAnimation {
 }
 
 impl QwenAnimation {
-    fn new(duration: f64) -> Self {
+    fn new(duration: f32) -> Self {
         QwenAnimation {
             properties: HashMap::new(),
             duration,
@@ -98,19 +98,19 @@ impl QwenAnimation {
         }
     }
 
-    fn set_easing(&mut self, easing: Box<dyn Fn(f64) -> f64 >) {
+    fn set_easing(&mut self, easing: Box<dyn Fn(f32) -> f32 >) {
         self.easing = easing;
     }
 }
 
 pub struct QwenAnimationBuilder {
-    duration: f64,
+    duration: f32,
     properties: HashMap<String, (AnimationValue, AnimationValue)>,
-    easing: Option<Box<dyn Fn(f64) -> f64 >>,
+    easing: Option<Box<dyn Fn(f32) -> f32 >>,
 }
 
 impl QwenAnimationBuilder {
-    pub fn new(duration: f64) -> Self {
+    pub fn new(duration: f32) -> Self {
         QwenAnimationBuilder {
             duration,
             properties: HashMap::new(),
@@ -123,7 +123,7 @@ impl QwenAnimationBuilder {
         self
     }
 
-    pub fn set_easing(mut self, easing: Box<dyn Fn(f64) -> f64 >) -> Self {
+    pub fn set_easing(mut self, easing: Box<dyn Fn(f32) -> f32 >) -> Self {
         self.easing = Some(easing);
         self
     }

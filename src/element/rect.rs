@@ -9,19 +9,19 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 pub struct RectOptions {
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
     pub fill: String,
     pub stroke: String,
-    pub stroke_width: f64,
-    pub opacity: f64,
-    pub scale_x: f64,
-    pub scale_y: f64,
-    pub skew_x: f64,
-    pub skew_y: f64,
-    pub rotation: f64,
+    pub stroke_width: f32,
+    pub opacity: f32,
+    pub scale_x: f32,
+    pub scale_y: f32,
+    pub skew_x: f32,
+    pub skew_y: f32,
+    pub rotation: f32,
 }
 
 impl Default for RectOptions {
@@ -50,31 +50,31 @@ pub struct Rect {
     id: ObjectId,
     dirty: bool,
     #[dirty_setter]
-    pub x: f64,
+    pub x: f32,
     #[dirty_setter]
-    pub y: f64,
+    pub y: f32,
     #[dirty_setter]
-    pub width: f64,
+    pub width: f32,
     #[dirty_setter]
-    pub height: f64,
+    pub height: f32,
     #[dirty_setter]
     pub fill: String,
     #[dirty_setter]
     pub stroke: String,
     #[dirty_setter]
-    pub stroke_width: f64,
+    pub stroke_width: f32,
     #[dirty_setter]
-    pub opacity: f64,
+    pub opacity: f32,
     #[dirty_setter]
-    pub scale_x: f64,
+    pub scale_x: f32,
     #[dirty_setter]
-    pub scale_y: f64,
+    pub scale_y: f32,
     #[dirty_setter]
-    pub skew_x: f64,
+    pub skew_x: f32,
     #[dirty_setter]
-    pub skew_y: f64,
+    pub skew_y: f32,
     #[dirty_setter]
-    pub rotation: f64,
+    pub rotation: f32,
 
     #[serde(skip)]
     app: Option<App>,
@@ -160,19 +160,19 @@ impl Dirty for Rect {
 
 #[derive(Debug, Clone, Deserialize)]
 struct RectUpdateBoadyData {
-    x: Option<f64>,
-    y: Option<f64>,
-    width: Option<f64>,
-    height: Option<f64>,
+    x: Option<f32>,
+    y: Option<f32>,
+    width: Option<f32>,
+    height: Option<f32>,
     fill: Option<String>,
     stroke: Option<String>,
-    stroke_width: Option<f64>,
-    opacity: Option<f64>,
-    scale_x: Option<f64>,
-    scale_y: Option<f64>,
-    skew_x: Option<f64>,
-    skew_y: Option<f64>,
-    rotation: Option<f64>,
+    stroke_width: Option<f32>,
+    opacity: Option<f32>,
+    scale_x: Option<f32>,
+    scale_y: Option<f32>,
+    skew_x: Option<f32>,
+    skew_y: Option<f32>,
+    rotation: Option<f32>,
 }
 
 impl Renderable for Rect {
@@ -188,7 +188,7 @@ impl Renderable for Rect {
         self.render_fn(renderer)
     }
 
-    fn position(&self) -> (f64, f64) {
+    fn position(&self) -> (f32, f32) {
         (self.x, self.y)
     }
 
@@ -207,6 +207,11 @@ impl Renderable for Rect {
     fn to_value(&self) -> Value {
         json!(self)
     }
+
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.set_x(x);
+        self.set_y(y);
+    }
 }
 
 impl Eventable for Rect {}
@@ -223,12 +228,18 @@ impl  Rect {
             }
         }
 
-        let base_transform = Transform2F::from_scale(vec2f(self.scale_x as f32, self.scale_y as f32));
-        let translate_transform = base_transform.translate(vec2f(self.x as f32, self.y as f32));
-        let final_transform = translate_transform.rotate(self.rotation.to_radians() as f32);
+        let center = vec2f(
+            (self.width / 2.0) as f32,
+            (self.height / 2.0) as f32
+        );
+        
+        let final_transform = Transform2F::from_translation(vec2f(self.x as f32, self.y as f32))
+            * Transform2F::from_translation(center)
+            * Transform2F::from_rotation(self.rotation.to_radians() as f32)
+            * Transform2F::from_scale(vec2f(self.scale_x as f32, self.scale_y as f32))
+            * Transform2F::from_translation(-center);
 
         self.cached_transform = Some(final_transform);
-        return final_transform;
+        final_transform
     }
-
 }

@@ -168,7 +168,7 @@ impl History {
         let should_finalize = {
             let current_unit = self.current_unit.borrow();
             let last_push_time = self.last_push_time.borrow();
-            current_unit.is_none() || now.duration_since(*last_push_time).as_secs_f64() > 0.5
+            current_unit.is_none() || now.duration_since(*last_push_time).as_secs_f32() > 0.5
         };
 
         if should_finalize {
