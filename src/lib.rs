@@ -1,4 +1,3 @@
-mod animation;
 mod app;
 mod bounding_box;
 mod element;
@@ -8,6 +7,7 @@ mod helper;
 mod history;
 mod image;
 mod object_manager;
+mod shader_program;
 mod renderer;
 mod scene_manager;
 mod source_manager;
@@ -38,13 +38,13 @@ pub async fn wasm_main() {
             let size = 1360.0;
             for i in 0..2 {
                 let mut image = ImageElement::new_from_source_key(key.clone());
-                let x = (i % 10) as f32 * size;
-                let y = (i / 10) as f32 * size;
+                let x = (i % 10) as f64 * size;
+                let y = (i / 10) as f64 * size;
                 image.set_height(size);
                 image.set_width(size);
                 image.set_x(x);
                 image.set_y(y);
-                image.set_rotation(i as f32 * 10.0);
+                image.set_rotation(i as f64 * 10.0);
                 image.set_stroke("red".to_string());
                 image.set_stroke_width(10.0);
 

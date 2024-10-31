@@ -1,16 +1,14 @@
 mod rect;
 mod image;
 
-use pathfinder_canvas::CanvasRenderingContext2D;
 pub use rect::Rect;
-pub use image::{ImageElement, ImageOptions};
+pub use image::ImageElement;
 
 use serde_json::Value;
 use std::fmt::Debug;
-use web_sys::{CanvasRenderingContext2d, WebGl2RenderingContext};
 
 use std::any::{Any, TypeId};
-use crate::app::App;
+use crate::{app::App, renderer::RenderContext};
 use crate::helper::generate_id;
 
 use serde::{Deserialize, Serialize};
@@ -176,7 +174,7 @@ pub trait Eventable {
         Vec::new()
     }
 
-    fn contains_point(&self, x: f32, y: f32) -> bool {
+    fn contains_point(&self, x: f64, y: f64) -> bool {
         false
     }
 }
@@ -189,16 +187,14 @@ pub trait Renderable: Debug + Dirty + Eventable + Any  {
     fn attach(&mut self, app: &App);
     fn detach(&mut self);
     
-    fn render(&self, ctx: &mut CanvasRenderingContext2D);
-    fn position(&self) -> (f32, f32);
+    fn render(&self, ctx: &RenderContext);
+    fn position(&self) -> (f64, f64);
     
     fn get_type(&self) -> &str;
 
     fn to_value(&self) -> Value;
 
-    fn set_position(&mut self, x: f32, y: f32);
-
-    fn render_gl(&self, gl: &mut WebGl2RenderingContext) {}
+    fn set_position(&mut self, x: f64, y: f64);
 }
 
 // 容器 trait
@@ -209,8 +205,8 @@ pub trait RenderContainer: Debug {
     fn remove(&mut self, id: &ObjectId) -> Option<Self::Item>;
     fn get(&self, id: &ObjectId) -> Option<&Self::Item>;
     fn get_mut(&mut self, id: &ObjectId) -> Option<&mut Self::Item>;
-    fn render_all(&self, context: &CanvasRenderingContext2d);
-    fn update_all(&mut self, delta_time: f32);
+    fn render_all(&self, context: &RenderContext);
+    fn update_all(&mut self, delta_time: f64);
 
     fn as_any(&self) -> &dyn Any;
 }

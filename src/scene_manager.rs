@@ -6,12 +6,10 @@ use crate::{
     },
     history::{HistoryItem, SceneHistoryItem},
     object_manager::ObjectManager,
-    renderer::{CanvasType, Renderer},   
+    renderer::{CanvasType, RenderContext, Renderer}, shader_program::ShaderProgram,   
 };
-use pathfinder_canvas::{vec2f, CanvasRenderingContext2D, Transform2F, Vector2F};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use wasm_bindgen_test::console_log;
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -20,18 +18,18 @@ use std::{
 };
 use wasm_bindgen::{prelude::Closure, JsCast, JsValue};
 
-use web_sys::{console, js_sys, window, HtmlCanvasElement, MouseEvent, WebGl2RenderingContext};
+use web_sys::{console, window, HtmlCanvasElement, MouseEvent, WebGl2RenderingContext};
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SceneDirtyData {
-    pub zoom: f32,
-    pub offset_x: f32,
-    pub offset_y: f32,
-    pub rotation: f32,
+    pub zoom: f64,
+    pub offset_x: f64,
+    pub offset_y: f64,
+    pub rotation: f64,
     pub height: u32,
     pub width: u32,
-    pub dpr: f32,
+    pub dpr: f64,
 }
 
 pub struct SceneManagerOptions {
@@ -39,7 +37,7 @@ pub struct SceneManagerOptions {
     pub object_manager: Rc<RefCell<ObjectManager>>,
     pub height: Option<u32>,
     pub width: Option<u32>,
-    pub device_pixel_ratio: Option<f32>,
+    pub device_pixel_ratio: Option<f64>,
 }
 
 impl Default for SceneManagerOptions {
@@ -50,14 +48,14 @@ impl Default for SceneManagerOptions {
             object_manager: Rc::new(RefCell::new(ObjectManager::new())),
             height: None,
             width: None,
-            device_pixel_ratio: Some(window_dpr as f32),
+            device_pixel_ratio: Some(window_dpr as f64),
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SceneManager {
-    dpr: Option<f32>,
+    dpr: Option<f64>,
     height: Option<u32>,
     width: Option<u32>,
     canvas_id: String,
@@ -65,18 +63,18 @@ pub struct SceneManager {
     renderer: Rc<RefCell<Option<Renderer>>>,
     object_manager: Rc<RefCell<ObjectManager>>,
 
-    zoom: f32,
-    offset_x: f32,
-    offset_y: f32,
-    rotation: f32,
+    zoom: f64,
+    offset_x: f64,
+    offset_y: f64,
+    rotation: f64,
 
-    center_x: f32,
-    center_y: f32,
+    center_x: f64,
+    center_y: f64,
 
     event_handlers: Rc<RefCell<EventHandlers>>,
     event_listeners: Rc<RefCell<HashMap<String, Closure<dyn FnMut(MouseEvent)>>>>,
 
-    cached_transform: Cell<Option<Transform2F>>,
+    cached_transform: Cell<Option<glam::DMat3>>,
     transform_dirty: Cell<bool>,
 
     app: Option<App>,
@@ -146,14 +144,14 @@ impl SceneManager {
 }
 
 impl SceneManager {
-    pub fn set_pixel_ratio(&mut self, ratio: f32) -> Result<(), JsValue> {
+    pub fn set_pixel_ratio(&mut self, ratio: f64) -> Result<(), JsValue> {
         // let (css_width, css_height) = get_canvas_css_size(&canvas)?;
         if let Some(canvas) = self.canvas.as_ref() {
             let size_canvas = get_canvas(&self.canvas_id)?;
             let (css_width, css_height) = get_canvas_css_size(&size_canvas)?;
 
-            let physical_width = (css_width as f32 * ratio) as u32;
-            let physical_height = (css_height as f32 * ratio) as u32;
+            let physical_width = (css_width as f64 * ratio) as u32;
+            let physical_height = (css_height as f64 * ratio) as u32;
 
             canvas.borrow_mut().set_width(physical_width);
             canvas.borrow_mut().set_height(physical_height);
@@ -181,7 +179,7 @@ impl SceneManager {
         
         self.canvas = Some(canvas_rc.clone());
 
-        self.set_pixel_ratio(dpr * 2.0)?;
+        self.set_pixel_ratio(dpr as f64)?;
         let canvas_type = CanvasType::Html(canvas_rc);
         let renderer = Renderer::new(canvas_type, self.width.unwrap(), self.height.unwrap());
         self.renderer = Rc::new(RefCell::new(Some(renderer)));
@@ -193,118 +191,25 @@ impl SceneManager {
 impl SceneManager {
     pub fn render(&self) {
         if let Some(renderer) = self.renderer.borrow_mut().as_mut() {
-            renderer.render(|ctx| self.render_scene(ctx), |gl| self.render_gl(gl));
+            renderer.render( |gl| self.render_gl(gl));
         }
     }
 
-    fn render_scene(&self, ctx: &mut CanvasRenderingContext2D) {
-        self.prepare_renderers(ctx);
-        self.render_objects(ctx);
-        ctx.restore();
-    }
-
-    fn render_gl(&self, gl: &mut WebGl2RenderingContext) {
-        console_log!("render_gl");
-        // Clear the canvas
-        gl.clear_color(0.9, 0.9, 0.9, 1.0);
+    fn render_gl(&self, gl: &WebGl2RenderingContext) {
+        let shader_program = ShaderProgram::instance(gl);
         gl.clear(WebGl2RenderingContext::COLOR_BUFFER_BIT);
+        shader_program.bind(gl); 
+        let mut context = RenderContext {
+            gl,
+            global_transform: self.calc_transform(),
+        };
         
-        // Vertex shader source
-        let vertex_shader_source = r#"#version 300 es
-            in vec4 position;
-            void main() {
-                gl_Position = position;
-            }
-        "#;
-
-        // Fragment shader source
-        let fragment_shader_source = r#"#version 300 es
-            precision mediump float;
-            out vec4 outColor;
-            void main() {
-                outColor = vec4(1.0, 0.0, 0.0, 1.0); // Red color
-            }
-        "#;
-
-        // Create and compile shaders
-        let vertex_shader = gl.create_shader(WebGl2RenderingContext::VERTEX_SHADER).unwrap();
-        gl.shader_source(&vertex_shader, vertex_shader_source);
-        gl.compile_shader(&vertex_shader);
-
-        let fragment_shader = gl.create_shader(WebGl2RenderingContext::FRAGMENT_SHADER).unwrap();
-        gl.shader_source(&fragment_shader, fragment_shader_source);
-        gl.compile_shader(&fragment_shader);
-
-        // Create shader program
-        let program = gl.create_program().unwrap();
-        gl.attach_shader(&program, &vertex_shader);
-        gl.attach_shader(&program, &fragment_shader);
-        gl.link_program(&program);
-        gl.use_program(Some(&program));
-
-        // Create vertex buffer
-        let vertices: [f32; 12] = [
-            -0.5, -0.5,  // Bottom left
-             0.5, -0.5,  // Bottom right
-             0.5,  0.5,  // Top right
-            -0.5, -0.5,  // Bottom left
-             0.5,  0.5,  // Top right
-            -0.5,  0.5,  // Top left
-        ];
-
-        let position_attribute_location = gl.get_attrib_location(&program, "position");
-        let buffer = gl.create_buffer().unwrap();
-        gl.bind_buffer(WebGl2RenderingContext::ARRAY_BUFFER, Some(&buffer));
-
-        // Note that `vertices` is getting converted to a raw byte array here
-        unsafe {
-            let positions_array_buf_view = js_sys::Float32Array::view(&vertices);
-            gl.buffer_data_with_array_buffer_view(
-                WebGl2RenderingContext::ARRAY_BUFFER,
-                &positions_array_buf_view,
-                WebGl2RenderingContext::STATIC_DRAW,
-            );
-        }
-
-        let vao = gl.create_vertex_array().unwrap();
-        gl.bind_vertex_array(Some(&vao));
-        gl.enable_vertex_attrib_array(position_attribute_location as u32);
-        gl.vertex_attrib_pointer_with_i32(
-            position_attribute_location as u32,
-            2,                                    // size (num components)
-            WebGl2RenderingContext::FLOAT,       // type
-            false,                               // normalize
-            0,                                   // stride
-            0,                                   // offset
-        );
-
-        // Draw the square
-        gl.draw_arrays(
-            WebGl2RenderingContext::TRIANGLES,
-            0,                                   // offset
-            6,                                   // count
-        );
+        self.render_objects(&mut context);
     }
 
-    fn prepare_renderers(&self, ctx: &mut CanvasRenderingContext2D) {
-        let dpr = web_sys::window().unwrap().device_pixel_ratio();
-        // ctx.clear();
-        // ctx.save();
-        ctx.scale(vec2f(dpr as f32, dpr as f32));
-        ctx.set_line_width(1.0 / dpr as f32);
-        let translate_transform = Transform2F::from_translation(vec2f(self.center_x as f32, self.center_y as f32));
-        let final_transform = translate_transform * self.calc_transform();
-        ctx.set_transform(&final_transform);
-    }
-
-    fn render_objects(&self, ctx: &mut CanvasRenderingContext2D) {
-        let object_manager = self.object_manager.borrow();
-        for object in object_manager.get_objects() {
-            let object_borrow = object.borrow();
-
-            ctx.save();
-            object_borrow.render(ctx);
-            ctx.restore();
+    fn render_objects(&self, context: & RenderContext) {
+        for (_, object) in self.object_manager.borrow().iter() {
+            object.borrow_mut().render(context);
         }
     }
 }
@@ -447,14 +352,14 @@ impl SceneManager {
         // let rect = canvas.borrow().get_bounding_client_rect();
         // let dpr = self.dpr.unwrap_or(1.0);
 
-        // let canvas_x = (event.client_x() as f32 - rect.left()) * dpr;
-        // let canvas_y = (event.client_y() as f32 - rect.top()) * dpr;
+        // let canvas_x = (event.client_x() as f64 - rect.left()) * dpr;
+        // let canvas_y = (event.client_y() as f64 - rect.top()) * dpr;
 
         // let transform = convert_1x6_to_3x3(self.calc_transform());
         // let inverse_transform = transform.try_inverse()?;
 
         // let original_point = inverse_transform * na::Vector3::new(canvas_x, canvas_y, 1.0);
-        // let (original_x, original_y) = (original_point[0] as f32, original_point[1] as f32);
+        // let (original_x, original_y) = (original_point[0] as f64, original_point[1] as f64);
 
         // let mut hit_renderer = self.hit_renderer.borrow_mut();
         // let hit_renderer = hit_renderer.as_mut().unwrap();
@@ -469,31 +374,39 @@ impl SceneManager {
 }
 
 impl SceneManager {
-    pub fn calc_transform(&self) -> Transform2F {
+    pub fn calc_transform(&self) -> glam::DMat3 {
         if !self.transform_dirty.get() {
             if let Some(cached) = self.cached_transform.get() {
                 return cached;
             }
         }
 
-        let transform = Transform2F::from_scale(self.zoom as f32);
-        let new_transform = transform.translate(Vector2F::new(self.offset_x as f32, self.offset_y as f32));
-        let final_transform = new_transform.rotate(self.rotation.to_radians() as f32);
+        // Create transformation matrix in this order:
+        // 1. Translate to rotation center
+        // 2. Apply rotation
+        // 3. Translate back from rotation center
+        // 4. Apply zoom
+        // 5. Apply final offset
+        let transform = glam::DMat3::from_translation(glam::DVec2::new(-self.center_x, -self.center_y))
+            * glam::DMat3::from_angle(self.rotation)
+            * glam::DMat3::from_translation(glam::DVec2::new(self.center_x, self.center_y))
+            * glam::DMat3::from_scale(glam::DVec2::splat(self.zoom))
+            * glam::DMat3::from_translation(glam::DVec2::new(self.offset_x, self.offset_y));
 
-        self.cached_transform.set(Some(final_transform));
+        self.cached_transform.set(Some(transform));
         self.transform_dirty.set(false);
 
-        final_transform
+        transform   
     }
 
-    pub fn set_zoom(&mut self, zoom: f32) {
+    pub fn set_zoom(&mut self, zoom: f64) {
         let old_data = self.get_dirty_data();
         self.zoom = zoom.max(0.1).min(10.0); // Limit zoom range
         let new_data = self.get_dirty_data();
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn set_offset(&mut self, x: f32, y: f32) {
+    pub fn set_offset(&mut self, x: f64, y: f64) {
         let old_data = self.get_dirty_data();
         self.offset_x = x;
         self.offset_y = y;
@@ -501,14 +414,14 @@ impl SceneManager {
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn set_rotation(&mut self, rotation: f32) {
+    pub fn set_rotation(&mut self, rotation: f64) {
         let old_data = self.get_dirty_data();
-        self.rotation = rotation % (2.0 * std::f32::consts::PI);
+        self.rotation = rotation % (2.0 * std::f64::consts::PI);
         let new_data = self.get_dirty_data();
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn pan(&mut self, dx: f32, dy: f32) {
+    pub fn pan(&mut self, dx: f64, dy: f64) {
         let old_data = self.get_dirty_data();
         self.offset_x += dx;
         self.offset_y += dy;
@@ -516,7 +429,7 @@ impl SceneManager {
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn zoom_at(&mut self, x: f32, y: f32, factor: f32) {
+    pub fn zoom_at(&mut self, x: f64, y: f64, factor: f64) {
         let old_data = self.get_dirty_data();
         let new_zoom = (self.zoom * factor).max(0.1).min(10.0);
         let zoom_change = new_zoom / self.zoom;
@@ -565,14 +478,14 @@ impl SceneManager {
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn set_dpr(&mut self, dpr: f32) {
+    pub fn set_dpr(&mut self, dpr: f64) {
         let old_data = self.get_dirty_data();
         self.dpr = Some(dpr);
         let new_data = self.get_dirty_data();
         self.set_transform_direct(old_data, new_data);
     }
 
-    pub fn update_rotation(&mut self, rotation_speed: f32) {
+    pub fn update_rotation(&mut self, rotation_speed: f64) {
         let old_data = self.get_dirty_data();
         self.rotation += rotation_speed;
         let new_data = self.get_dirty_data();
@@ -580,7 +493,7 @@ impl SceneManager {
     }
 
     // 设置旋转中心
-    pub fn set_center(&mut self, x: f32, y: f32) {
+    pub fn set_center(&mut self, x: f64, y: f64) {
         let old_data = self.get_dirty_data();
         self.center_x = x;
         self.center_y = y;

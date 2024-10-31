@@ -1,25 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pathfinder_color::ColorF;
-use pathfinder_renderer::options::BuildOptions;
-use pathfinder_renderer::scene::Scene;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlCanvasElement, OffscreenCanvas, WebGl2RenderingContext};
-use pathfinder_canvas::{Canvas, CanvasFontContext, CanvasRenderingContext2D, CompositeOperation};
-use pathfinder_renderer::gpu::renderer::Renderer as PathfinderRenderer;
-use pathfinder_geometry::vector::vec2i;
-use pathfinder_renderer::concurrent::executor::SequentialExecutor;
-use pathfinder_renderer::gpu::options::{DestFramebuffer, RendererMode, RendererOptions};
-use pathfinder_resources::embedded::EmbeddedResourceLoader;
-use pathfinder_webgl::WebGlDevice;
 
-use crate::render_buffer::GLBufferRenderer;
+use crate::{render_buffer::GLBufferRenderer, shader_program::ShaderProgram};
 
 pub struct Renderer {
     canvas: CanvasType,
-    pathfinder_renderer: Option<PathfinderRenderer<WebGlDevice>>,
-    scene: Scene,
     width: u32,
     height: u32,
     gl_renderer: GLBufferRenderer,
@@ -53,88 +41,37 @@ impl Renderer {
                     .unwrap()
             }
         };
-
-        // 初始化 Pathfinder 渲染器
-        let framebuffer_size = vec2i(width as i32, height as i32);
-        let pathfinder_device = WebGlDevice::new(gl.clone());
-        let mode = RendererMode::default_for_device(&pathfinder_device);
-        let options = RendererOptions {
-            dest: DestFramebuffer::full_window(framebuffer_size),
-            background_color: Some(ColorF::black()),
-            show_debug_ui: true,
-            ..RendererOptions::default()
-        };
-        let resource_loader = EmbeddedResourceLoader::new();
-        let pathfinder_renderer = Some(PathfinderRenderer::new(
-            pathfinder_device,
-            &resource_loader,   
-            mode,
-            options,
-        ));
-
+        
         let renderer = GLBufferRenderer::new(canvas.clone(), width, height);
 
         Renderer {
             canvas,
-            pathfinder_renderer,
-            scene: Scene::new(),
             width,
             height,
             gl_renderer: renderer,
         }
     }
 
-    // 使用 Pathfinder 进行矢量渲染
-    pub fn render_vector(&mut self, render_fn: impl FnOnce(&mut CanvasRenderingContext2D)) {
-        let framebuffer_size = vec2i(self.width as i32, self.height as i32);
-
-        let pathfinder_canvas = Canvas::new(framebuffer_size.to_f32());
-
-        let font_context = CanvasFontContext::from_system_source();
-        let mut ctx = pathfinder_canvas.get_context_2d(font_context);
-
-        // ctx.set_global_composite_operation(CompositeOperation::DestinationOver);
-
-        render_fn(&mut ctx);
-
-        self.scene = ctx.into_canvas().into_scene();
-        if let Some(renderer) = &mut self.pathfinder_renderer {
-            let options = BuildOptions::default();
-            
-            self.scene.build_and_render(renderer, options, SequentialExecutor);
-        }
-    }
-
     // 使用 WebGL 直接渲染
     pub fn render_webgl(&mut self, render_fn: impl FnOnce(&mut WebGl2RenderingContext)) {
         self.gl_renderer.render_to_buffer(render_fn);
-        if self.gl_renderer.has_content() {
-            self.gl_renderer.flush_to_canvas();
-        }
+        // if self.gl_renderer.has_content() {
+        //     self.gl_renderer.flush_to_canvas();
+        // }
     }
 
     // 组合渲染
     pub fn render(
         &mut self,
-        vector_fn: impl FnOnce(&mut CanvasRenderingContext2D),
-        webgl_fn: impl FnOnce(&mut WebGl2RenderingContext),
+        render_fn: impl FnOnce(&mut WebGl2RenderingContext),
     ) {
-
-        self.render_vector(vector_fn);
-        
-        // self.render_webgl(webgl_fn);
+        self.render_webgl(render_fn);
     }
 
     // 调整大小
     pub fn resize(&mut self, width: u32, height: u32) {
         self.width = width;
         self.height = height;
-        
-        // 更新 Pathfinder 渲染器的视口
-        if let Some(renderer) = &mut self.pathfinder_renderer {
-            let framebuffer_size = vec2i(width as i32, height as i32);
-            renderer.options_mut().dest = DestFramebuffer::full_window(framebuffer_size);
-        }
         
         self.gl_renderer.resize(width, height);
     }
@@ -158,3 +95,19 @@ impl From<OffscreenCanvas> for CanvasType {
         CanvasType::Offscreen(Rc::new(RefCell::new(canvas)))
     }
 }
+
+pub struct RenderContext<'a> {
+    pub gl: &'a WebGl2RenderingContext,
+    pub global_transform: glam::DMat3,
+}
+
+impl RenderContext<'_> {
+    pub fn calc_transform(&self, transform: glam::DMat3) -> glam::DMat3 {
+        self.global_transform * transform
+    }
+
+    pub fn get_shader_program(&self) -> &'static ShaderProgram {
+        ShaderProgram::instance(self.gl)
+    }
+}
+
